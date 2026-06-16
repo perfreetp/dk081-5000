@@ -34,10 +34,35 @@ export interface StepItem {
   hint?: string
 }
 
+export interface FamilyViewRecord {
+  viewedAt: string
+  viewerInfo?: string
+}
+
+export interface CsContactRecord {
+  id: string
+  time: string
+  reason: string
+  timeoutNode?: string
+  status: '待处理' | '处理中' | '已解决'
+  expectedFeedbackAt?: string
+  notes?: string
+}
+
+export interface ReceiptOperationLog {
+  id: string
+  type: 'download' | 'forward'
+  docType: string
+  time: string
+  target?: string
+}
+
 export interface MockOrder {
   id: string
   type: 'sell' | 'buy'
   game: string
+  server?: string
+  level?: string
   status: '进行中' | '已完成' | '异常超时'
   currentStep: number
   totalSteps: number
@@ -45,6 +70,12 @@ export interface MockOrder {
   createdAt: string
   completedAt?: string
   steps: StepItem[]
+  sellFormInfo?: string
+  contactPhone?: string
+  familyShareCode?: string
+  familyViewRecords: FamilyViewRecord[]
+  csContactRecords: CsContactRecord[]
+  receiptOperationLogs: ReceiptOperationLog[]
 }
 
 export interface FAQItem {
@@ -148,11 +179,21 @@ export const mockOrders: MockOrder[] = [
     id: 'ORD20260601001',
     type: 'sell',
     game: '王者荣耀',
+    server: '微信区-星耀1服',
+    level: '最强王者',
     status: '进行中',
     currentStep: 3,
     totalSteps: 5,
     amount: 680,
     createdAt: '2026-06-01 14:30',
+    contactPhone: '138****8888',
+    familyShareCode: 'AX6010015832',
+    familyViewRecords: [
+      { viewedAt: '2026-06-01 15:00', viewerInfo: '孩子爸爸' },
+      { viewedAt: '2026-06-02 09:30', viewerInfo: '家人' },
+    ],
+    csContactRecords: [],
+    receiptOperationLogs: [],
     steps: [
       { name: '提交账号信息', status: 'completed', time: '2026-06-01 14:30', hint: '您已提交，平台正在审核' },
       { name: '平台验号', status: 'completed', time: '2026-06-01 15:20', hint: '验号通过，账号信息真实' },
@@ -170,6 +211,26 @@ export const mockOrders: MockOrder[] = [
     totalSteps: 5,
     amount: 1200,
     createdAt: '2026-06-02 09:15',
+    contactPhone: '139****6666',
+    familyShareCode: 'AX6020023947',
+    familyViewRecords: [
+      { viewedAt: '2026-06-02 10:00', viewerInfo: '孩子妈妈' },
+    ],
+    csContactRecords: [
+      {
+        id: 'CS20260603001',
+        time: '2026-06-03 10:30',
+        reason: '卖家换绑超时，催促进度',
+        timeoutNode: '卖家换绑账号',
+        status: '处理中',
+        expectedFeedbackAt: '2026-06-03 15:00',
+        notes: '客服已联系卖家，正在沟通中',
+      },
+    ],
+    receiptOperationLogs: [
+      { id: 'LOG001', type: 'download', docType: '交易合同', time: '2026-06-02 10:00' },
+      { id: 'LOG002', type: 'forward', docType: '付款凭证', time: '2026-06-02 14:30', target: '微信-孩子爸爸' },
+    ],
     steps: [
       { name: '选购账号', status: 'completed', time: '2026-06-02 09:15', hint: '您已选定账号' },
       { name: '确认购买', status: 'completed', time: '2026-06-02 09:40', hint: '购买已确认' },
@@ -182,12 +243,36 @@ export const mockOrders: MockOrder[] = [
     id: 'ORD20260603003',
     type: 'sell',
     game: '和平精英',
+    server: 'QQ区-战神服',
+    level: '超级王牌',
     status: '已完成',
     currentStep: 5,
     totalSteps: 5,
     amount: 350,
     createdAt: '2026-05-28 11:00',
     completedAt: '2026-05-28 17:00',
+    contactPhone: '137****5555',
+    familyShareCode: 'AX6030031258',
+    familyViewRecords: [
+      { viewedAt: '2026-05-28 12:00', viewerInfo: '孩子舅舅' },
+      { viewedAt: '2026-05-28 18:00', viewerInfo: '孩子爸爸' },
+      { viewedAt: '2026-05-29 08:00', viewerInfo: '家人' },
+    ],
+    csContactRecords: [
+      {
+        id: 'CS20260528001',
+        time: '2026-05-28 16:00',
+        reason: '换绑操作咨询',
+        status: '已解决',
+        notes: '电话指导完成换绑',
+      },
+    ],
+    receiptOperationLogs: [
+      { id: 'LOG003', type: 'download', docType: '交易合同', time: '2026-05-28 17:30' },
+      { id: 'LOG004', type: 'download', docType: '收款确认', time: '2026-05-28 17:35' },
+      { id: 'LOG005', type: 'forward', docType: '交易完成确认', time: '2026-05-28 18:00', target: '微信-家人群' },
+      { id: 'LOG006', type: 'download', docType: '换绑确认书', time: '2026-05-28 18:10' },
+    ],
     steps: [
       { name: '提交账号信息', status: 'completed', time: '2026-05-28 11:00', hint: '您已提交' },
       { name: '平台验号', status: 'completed', time: '2026-05-28 12:30', hint: '验号通过' },

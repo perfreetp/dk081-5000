@@ -2,7 +2,8 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Check, AlertTriangle, Volume2, Share2, FileText,
-  Download, Forward, ClipboardList, Phone, Clock, Shield
+  Download, Forward, ClipboardList, Phone, Clock, Shield,
+  Users, Copy, CheckCircle2, MessageSquare, Hourglass
 } from 'lucide-react'
 import { useTradeStore, type Order } from '@/stores/useTradeStore'
 import { mockOrders } from '@/data/mockData'
@@ -60,10 +61,18 @@ const getActiveStepInfo = (order: Order): string => {
   return activeStep.name + ' 进行中'
 }
 
+const formatDate = (date: Date): string => {
+  const pad = (n: number) => n.toString().padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
 const Orders: React.FC = () => {
   const navigate = useNavigate()
   const storeOrders = useTradeStore((s) => s.orders)
   const setSupportContext = useTradeStore((s) => s.setSupportContext)
+  const addCsContactRecord = useTradeStore((s) => s.addCsContactRecord)
+  const addReceiptOperationLog = useTradeStore((s) => s.addReceiptOperationLog)
+  const generateFamilyShareCode = useTradeStore((s) => s.generateFamilyShareCode)
   const [activeTab, setActiveTab] = useState<TabKey>('active')
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null)
   const [toastMsg, setToastMsg] = useState<string | null>(null)
@@ -82,7 +91,11 @@ const Orders: React.FC = () => {
   }
 
   const handleShare = (order: Order) => {
-    const shareUrl = `${window.location.origin}/family-view?orderId=${order.id}`
+    let code = order.familyShareCode
+    if (!code) {
+      code = generateFamilyShareCode(order.id)
+    }
+    const shareUrl = `${window.location.origin}/family-view?orderId=${order.id}&code=${code}`
     if (navigator.clipboard) {
       navigator.clipboard.writeText(shareUrl).then(() => {
         showToast('链接已复制，发给家人就能看订单进度')
@@ -94,18 +107,67 @@ const Orders: React.FC = () => {
     }
   }
 
-  const handleCallSupport = (order: Order, reason: string) => {
-    const ctx = `订单${order.id}（${order.type === 'sell' ? '卖号' : '买号'}·${order.game}）- ${reason}`
-    setSupportContext(ctx)
-    navigate('/support')
+
+
+  const handleAddCsContact = (order: Order, reason: string) => {
+    const now = new Date()
+    const expectedAt = new Date(now.getTime() + 2 * 60 * 60 * 1000)
+    addCsContactRecord(order.id, {
+      time: formatDate(now),
+      reason,
+      status: '待处理',
+      expectedFeedbackAt: formatDate(expectedAt),
+    })
+    showToast('已提交客服处理，预计2小时内回复')
+  }
+
+  const handleTimeoutContact = (order: Order) => {
+    const timeoutStep = order.steps.find(s => s.status === 'timeout')
+    if (!timeoutStep) return
+    const now = new Date()
+    const expectedAt = new Date(now.getTime() + 2 * 60 * 60 * 1000)
+    addCsContactRecord(order.id, {
+      time: formatDate(now),
+      reason: `${timeoutStep.name}超时，请求协助`,
+      timeoutNode: timeoutStep.name,
+      status: '待处理',
+      expectedFeedbackAt: formatDate(expectedAt),
+    })
+    showToast('已提交超时处理申请，客服会尽快联系您')
   }
 
   const handleDownload = (order: Order, docType: string) => {
+    const now = new Date()
+    addReceiptOperationLog(order.id, {
+      type: 'download',
+      docType,
+      time: formatDate(now),
+    })
     showToast(`${docType}已保存到手机，可在文件管理中查看`)
   }
 
   const handleForward = (order: Order, docType: string) => {
+    const now = new Date()
+    addReceiptOperationLog(order.id, {
+      type: 'forward',
+      docType,
+      time: formatDate(now),
+    })
     showToast(`${docType}分享链接已复制`)
+  }
+
+  const handleForwardAll = (order: Order) => {
+    const docs = getReceiptDocs(order)
+    const now = new Date()
+    docs.forEach(doc => {
+      addReceiptOperationLog(order.id, {
+        type: 'forward',
+        docType: doc.type,
+        time: formatDate(now),
+        target: '家人',
+      })
+    })
+    showToast('全部凭证已打包，可转发给家人')
   }
 
   const renderTimelineStep = (
@@ -164,7 +226,7 @@ const Orders: React.FC = () => {
         {step.status === 'timeout' && (
           <button
             className="mt-2 flex items-center gap-1 text-brand text-elder-sm font-semibold underline"
-            onClick={(e) => { e.stopPropagation(); handleCallSupport(order, step.name + '超时') }}
+            onClick={(e) => { e.stopPropagation(); handleTimeoutContact(order) }}
           >
             <Phone className="w-4 h-4" />
             联系客服处理
@@ -176,7 +238,7 @@ const Orders: React.FC = () => {
 
   const getReceiptDocs = (order: Order) => {
     const docs = [
-      { type: '交易合同', time: order.createdAt, desc: '平台担保交易协议' },
+      { type: '交易合同', time: order.createdAt, desc: '平台担保交易协议', ready: true },
     ]
     const payStep = order.steps.find(s =>
       s.name.includes('付款') && s.status === 'completed'
@@ -186,6 +248,7 @@ const Orders: React.FC = () => {
         type: order.type === 'sell' ? '收款确认' : '付款凭证',
         time: payStep.time || '',
         desc: order.type === 'sell' ? '平台确认已收到买家款项' : '您已付款至平台担保账户',
+        ready: true,
       })
     }
     const bindStep = order.steps.find(s =>
@@ -196,6 +259,7 @@ const Orders: React.FC = () => {
         type: '换绑确认书',
         time: bindStep.time || '',
         desc: '账号已成功换绑，双方确认',
+        ready: true,
       })
     }
     if (order.status === '已完成') {
@@ -203,17 +267,77 @@ const Orders: React.FC = () => {
         type: '交易完成确认',
         time: order.completedAt || order.steps.slice(-1)[0]?.time || '',
         desc: '交易全部完成，凭证可留存备查',
+        ready: true,
       })
     }
     return docs
   }
 
+  const getStatusBadgeColor = (status: string) => {
+    switch (status) {
+      case '待处理':
+        return 'bg-warn/10 text-warn'
+      case '处理中':
+        return 'bg-brand/10 text-brand'
+      case '已解决':
+        return 'bg-safe/10 text-safe'
+      default:
+        return 'bg-warm-border text-warm-muted'
+    }
+  }
+
   const renderExpanded = (order: Order) => {
     const activeInfo = getActiveStepInfo(order)
     const hasTimeout = order.steps.some(s => s.status === 'timeout')
+    const receiptDocs = getReceiptDocs(order)
+    const sortedCsRecords = [...order.csContactRecords].reverse()
+    const sortedReceiptLogs = [...order.receiptOperationLogs].reverse()
 
     return (
       <div className="mt-4 pt-4 border-t border-warm-border" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-gradient-to-r from-brand-50 to-warm-bg rounded-elder p-4 mb-4 border border-brand/20">
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <p className="text-elder-xs text-warm-muted">{order.id}</p>
+              <div className="flex items-center gap-2 mt-1">
+                <span className={`text-elder-xs font-semibold px-2 py-0.5 rounded-full ${
+                  order.type === 'sell' ? 'bg-brand-100 text-brand-600' : 'bg-safe/10 text-safe'
+                }`}>
+                  {order.type === 'sell' ? '卖号' : '买号'}
+                </span>
+                {order.status === '已完成' ? (
+                  <span className="text-elder-xs font-semibold px-2 py-0.5 rounded-full bg-safe/10 text-safe flex items-center gap-1">
+                    <Check className="w-3 h-3" /> 已完成
+                  </span>
+                ) : hasTimeout ? (
+                  <span className="text-elder-xs font-semibold px-2 py-0.5 rounded-full bg-danger/10 text-danger flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" /> 异常超时
+                  </span>
+                ) : (
+                  <span className="text-elder-xs font-semibold px-2 py-0.5 rounded-full bg-brand/10 text-brand flex items-center gap-1">
+                    <Clock className="w-3 h-3" /> 进行中
+                  </span>
+                )}
+              </div>
+            </div>
+            <p className="text-elder-xl font-bold text-brand">¥{order.amount}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Shield className="w-5 h-5 text-brand flex-shrink-0" />
+            <div>
+              <p className="text-elder-base font-semibold text-warm-text">{order.game}</p>
+              {order.server && <p className="text-elder-sm text-warm-muted">{order.server}</p>}
+            </div>
+          </div>
+          {order.status === '已完成' && order.completedAt && (
+            <div className="mt-3 pt-3 border-t border-brand/10">
+              <p className="text-elder-sm text-warm-muted">
+                完成时间：<span className="text-warm-text font-semibold">{order.completedAt}</span>
+              </p>
+            </div>
+          )}
+        </div>
+
         {activeInfo && (
           <div className={`rounded-elder p-4 mb-4 ${
             hasTimeout
@@ -242,14 +366,14 @@ const Orders: React.FC = () => {
           </div>
         )}
 
-        <div className="space-y-0">
+        <div className="space-y-0 mb-5">
           {order.steps.map((step, i) =>
             renderTimelineStep(step, i === order.steps.length - 1, order)
           )}
         </div>
 
         {hasTimeout && (
-          <div className="mt-4 bg-gradient-to-r from-danger/10 to-warn/10 rounded-elder p-4 flex items-center gap-3">
+          <div className="mb-5 bg-gradient-to-r from-danger/10 to-warn/10 rounded-elder p-4 flex items-center gap-3">
             <Volume2 className="w-6 h-6 text-danger flex-shrink-0" />
             <div className="flex-1">
               <p className="text-elder-sm font-semibold text-warm-text">
@@ -258,37 +382,114 @@ const Orders: React.FC = () => {
             </div>
             <button
               className="elder-btn-primary text-elder-sm min-h-0 px-4 py-2"
-              onClick={() => handleCallSupport(order, '订单超时处理')}
+              onClick={() => handleTimeoutContact(order)}
             >
               联系客服
             </button>
           </div>
         )}
 
-        <div className="mt-5">
+        <div className="mb-5">
           <p className="text-elder-base font-semibold text-warm-text mb-3 flex items-center gap-2">
-            <Share2 className="w-5 h-5 text-brand" />
-            分享给家人一起看着
+            <Users className="w-5 h-5 text-brand" />
+            家人共享
           </p>
-          <button
-            className="elder-btn-secondary w-full gap-2"
-            onClick={() => handleShare(order)}
-          >
-            <Share2 className="w-5 h-5" />
-            生成家人查看链接
-          </button>
-          <p className="text-elder-xs text-warm-muted mt-2 text-center">
-            家人只能查看进度和联系客服，不能操作订单
-          </p>
+          <div className="bg-brand-50 rounded-elder p-4 border border-brand/20">
+            {order.familyShareCode ? (
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-elder-xs text-warm-muted">分享码</p>
+                  <p className="text-elder-base font-mono font-bold text-warm-text">{order.familyShareCode}</p>
+                </div>
+                <button
+                  className="elder-btn-secondary gap-2"
+                  onClick={() => handleShare(order)}
+                >
+                  <Copy className="w-5 h-5" />
+                  复制分享链接
+                </button>
+              </div>
+            ) : (
+              <button
+                className="elder-btn-secondary w-full gap-2 mb-3"
+                onClick={() => handleShare(order)}
+              >
+                <Share2 className="w-5 h-5" />
+                生成家人查看链接
+              </button>
+            )}
+            {order.familyViewRecords.length > 0 && (
+              <div className="pt-3 border-t border-brand/10">
+                <p className="text-elder-sm text-warm-text mb-2">
+                  已有<span className="text-brand font-bold">{order.familyViewRecords.length}</span>位家人查看过
+                </p>
+                <div className="space-y-2">
+                  {order.familyViewRecords.map((record, i) => (
+                    <div key={i} className="flex items-center justify-between text-elder-sm">
+                      <span className="text-warm-muted">{record.viewedAt}</span>
+                      <span className="text-warm-text">{record.viewerInfo || '家人'}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="mt-5">
+        <div className="mb-5">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-elder-base font-semibold text-warm-text flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-brand" />
+              客服联系记录
+            </p>
+            <button
+              className="elder-btn-secondary text-elder-sm min-h-0 px-3 py-1.5 gap-1"
+              onClick={() => handleAddCsContact(order, '主动联系客服咨询')}
+            >
+              <Phone className="w-4 h-4" />
+              联系客服
+            </button>
+          </div>
+          {sortedCsRecords.length === 0 ? (
+            <div className="bg-warm-bg rounded-elder p-6 text-center">
+              <MessageSquare className="w-10 h-10 text-warm-muted mx-auto mb-2" />
+              <p className="text-elder-sm text-warm-muted">暂无客服联系记录</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {sortedCsRecords.map((record) => (
+                <div key={record.id} className="bg-warm-bg rounded-elder p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <p className="text-elder-sm font-semibold text-warm-text">{record.reason}</p>
+                    <span className={`text-elder-xs font-semibold px-2 py-0.5 rounded-full ${getStatusBadgeColor(record.status)}`}>
+                      {record.status}
+                    </span>
+                  </div>
+                  <p className="text-elder-xs text-warm-muted mb-2">{record.time}</p>
+                  {record.expectedFeedbackAt && (
+                    <p className="text-elder-sm text-warn mb-2 flex items-center gap-1">
+                      <Hourglass className="w-4 h-4" />
+                      预计反馈时间：{record.expectedFeedbackAt}
+                    </p>
+                  )}
+                  {record.notes && (
+                    <p className="text-elder-sm text-warm-text bg-brand-50 rounded-lg p-2">
+                      {record.notes}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="mb-5">
           <div className="flex items-center gap-2 mb-3">
             <FileText className="w-5 h-5 text-brand" />
             <p className="text-elder-base font-semibold text-warm-text">交易凭证</p>
           </div>
           <div className="space-y-2">
-            {getReceiptDocs(order).map((doc) => (
+            {receiptDocs.map((doc) => (
               <div
                 key={doc.type}
                 className="flex items-center gap-3 bg-brand-50 rounded-elder-sm p-3"
@@ -316,7 +517,82 @@ const Orders: React.FC = () => {
               </div>
             ))}
           </div>
+          {sortedReceiptLogs.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-warm-border">
+              <p className="text-elder-sm font-semibold text-warm-text mb-3">最近操作记录</p>
+              <div className="space-y-2">
+                {sortedReceiptLogs.map((log) => (
+                  <div key={log.id} className="flex items-center gap-3 text-elder-sm">
+                    {log.type === 'download' ? (
+                      <Download className="w-4 h-4 text-safe flex-shrink-0" />
+                    ) : (
+                      <Forward className="w-4 h-4 text-brand flex-shrink-0" />
+                    )}
+                    <div className="flex-1">
+                      <span className="text-warm-text">
+                        {log.type === 'download' ? '已下载' : '已转发'} {log.docType}
+                      </span>
+                      {log.target && (
+                        <span className="text-warm-muted ml-2">→ {log.target}</span>
+                      )}
+                    </div>
+                    <span className="text-warm-muted text-elder-xs">{log.time}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
+
+        {order.status === '已完成' && (
+          <div className="bg-gradient-to-br from-safe/20 via-brand/10 to-warm-bg rounded-elder p-5 border border-safe/30">
+            <div className="text-center mb-4">
+              <p className="text-elder-xl font-bold text-warm-text mb-1">🎉 交易已完成</p>
+              <p className="text-elder-base text-warm-text">
+                您的{order.game}账号交易已完成，¥{order.amount}已到账
+              </p>
+            </div>
+            <div className="bg-white/60 rounded-elder p-4 mb-4">
+              <p className="text-elder-sm font-semibold text-warm-text mb-3">交易文档清单</p>
+              <div className="space-y-2">
+                {receiptDocs.map((doc) => (
+                  <div key={doc.type} className="flex items-center gap-2 text-elder-sm">
+                    {doc.ready ? (
+                      <CheckCircle2 className="w-5 h-5 text-safe flex-shrink-0" />
+                    ) : (
+                      <Hourglass className="w-5 h-5 text-warn flex-shrink-0" />
+                    )}
+                    <span className={doc.ready ? 'text-warm-text' : 'text-warm-muted'}>
+                      {doc.type}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <button
+              className="elder-btn-primary w-full gap-2 mb-4"
+              onClick={() => handleForwardAll(order)}
+            >
+              <Share2 className="w-5 h-5" />
+              一键转发给家人
+            </button>
+            {order.familyViewRecords.length > 0 && (
+              <div className="pt-4 border-t border-safe/20">
+                <p className="text-elder-sm text-warm-text mb-2">
+                  家人查看记录（共{order.familyViewRecords.length}人）
+                </p>
+                <div className="space-y-1">
+                  {order.familyViewRecords.map((record, i) => (
+                    <div key={i} className="flex items-center justify-between text-elder-xs">
+                      <span className="text-warm-muted">{record.viewedAt}</span>
+                      <span className="text-warm-text">{record.viewerInfo || '家人'}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     )
   }

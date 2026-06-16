@@ -1,15 +1,25 @@
 import React, { useState, useMemo, useEffect } from 'react'
-import { Phone, MessageCircle, AlertCircle, ChevronDown, Volume2, Upload, Send, X } from 'lucide-react'
+import { Phone, MessageCircle, AlertCircle, ChevronDown, Volume2, Upload, Send, X, Clock } from 'lucide-react'
 import { useTradeStore } from '@/stores/useTradeStore'
-import { faqItems } from '@/data/mockData'
+import { faqItems, FAQItem } from '@/data/mockData'
 
 const Support: React.FC = () => {
   const supportContext = useTradeStore((s) => s.supportContext)
+  const supportContextDetail = useTradeStore((s) => s.supportContextDetail)
   const setSupportContext = useTradeStore((s) => s.setSupportContext)
+  const addCsContactRecord = useTradeStore((s) => s.addCsContactRecord)
+  const orders = useTradeStore((s) => s.orders)
   const [expandedFaq, setExpandedFaq] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [form, setForm] = useState({ description: '', phone: '' })
   const [showContext, setShowContext] = useState(true)
+
+  const currentOrder = useMemo(() => {
+    if (!supportContextDetail.orderId) return null
+    return orders.find((o) => o.id === supportContextDetail.orderId) || null
+  }, [supportContextDetail.orderId, orders])
+
+  const hasDetailData = Object.values(supportContextDetail).some((v) => v !== undefined && v !== '')
 
   useEffect(() => {
     if (supportContext) {
@@ -18,8 +28,36 @@ const Support: React.FC = () => {
   }, [supportContext])
 
   const groupedFaqs = useMemo(() => {
+    const extraFaqs: FAQItem[] = [
+      {
+        category: '换绑操作相关',
+        question: '换绑是什么意思？',
+        answer: '换绑就是把游戏账号绑定的手机号换成你的手机号。换绑完成后，卖家就不能再登录这个账号了，账号就真正属于你了。',
+      },
+      {
+        category: '换绑操作相关',
+        question: '换绑需要多久才能完成？',
+        answer: '不同游戏换绑时间不一样，一般1-24小时内完成。换绑期间请不要登录账号，避免影响换绑进度。客服会全程跟踪，有问题随时联系。',
+      },
+      {
+        category: '换绑操作相关',
+        question: '换绑操作我不会弄怎么办？',
+        answer: '不用担心！我们有专门的客服手把手教你操作。你可以点击页面上的"拨打技术支持"按钮，客服会一步一步告诉你怎么操作，直到换绑成功。',
+      },
+      {
+        category: '换绑操作相关',
+        question: '换绑失败了怎么办？',
+        answer: '换绑失败的原因有很多，比如原手机号无法接收验证码、账号有安全限制等。请立即联系客服，我们会帮你查明原因并协调解决，确保你的交易安全。',
+      },
+      {
+        category: '换绑操作相关',
+        question: '换绑成功后还需要做什么？',
+        answer: '换绑成功后，请及时登录账号确认账号信息完整，修改账号密码，并开启账号保护功能。如果发现任何问题，请立即联系客服处理。',
+      },
+    ]
+    const allFaqs = [...faqItems, ...extraFaqs]
     const map = new Map<string, typeof faqItems>()
-    faqItems.forEach((item) => {
+    allFaqs.forEach((item) => {
       const list = map.get(item.category) || []
       list.push(item)
       map.set(item.category, list)
@@ -51,6 +89,21 @@ const Support: React.FC = () => {
   }
 
   const handlePhoneCall = () => {
+    if (supportContextDetail.orderId) {
+      const reason = supportContextDetail.reason || '电话咨询'
+      const timeoutNode = supportContextDetail.reason?.includes('超时') ? supportContextDetail.reason : undefined
+      const now = new Date()
+      const expectedFeedbackAt = new Date(
+        now.getTime() + (timeoutNode ? 2 : 24) * 60 * 60 * 1000
+      )
+      addCsContactRecord(supportContextDetail.orderId, {
+        reason,
+        timeoutNode,
+        status: '待处理',
+        time: now.toLocaleString('zh-CN'),
+        expectedFeedbackAt: expectedFeedbackAt.toLocaleString('zh-CN'),
+      })
+    }
     showToast('正在拨打客服电话 400-123-4567...')
     setTimeout(() => {
       window.open('tel:4001234567')
@@ -58,6 +111,21 @@ const Support: React.FC = () => {
   }
 
   const handleOnlineChat = () => {
+    if (supportContextDetail.orderId) {
+      const reason = supportContextDetail.reason || '电话咨询'
+      const timeoutNode = supportContextDetail.reason?.includes('超时') ? supportContextDetail.reason : undefined
+      const now = new Date()
+      const expectedFeedbackAt = new Date(
+        now.getTime() + (timeoutNode ? 2 : 24) * 60 * 60 * 1000
+      )
+      addCsContactRecord(supportContextDetail.orderId, {
+        reason,
+        timeoutNode,
+        status: '待处理',
+        time: now.toLocaleString('zh-CN'),
+        expectedFeedbackAt: expectedFeedbackAt.toLocaleString('zh-CN'),
+      })
+    }
     showToast('正在连接客服...')
   }
 
@@ -75,18 +143,78 @@ const Support: React.FC = () => {
       <div className="px-4 pt-4 space-y-6">
         <h1 className="elder-section-title">客服帮助</h1>
 
-        {supportContext && showContext && (
+        {(supportContext || hasDetailData) && showContext && (
           <div className="bg-brand-50 border border-brand/30 rounded-elder p-4 flex items-start gap-3">
             <AlertCircle className="w-6 h-6 text-brand flex-shrink-0 mt-0.5" />
-            <div className="flex-1">
+            <div className="flex-1 space-y-2">
               <p className="text-elder-sm font-semibold text-brand">您来自：</p>
-              <p className="text-elder-base text-warm-text mt-1">{supportContext}</p>
-              <p className="text-elder-sm text-warm-muted mt-1">客服会根据您的具体情况帮您处理</p>
+              {supportContext && (
+                <p className="text-elder-base text-warm-text">{supportContext}</p>
+              )}
+              {hasDetailData && (
+                <div className="space-y-1 pt-2 border-t border-brand/20">
+                  {supportContextDetail.orderId && (
+                    <p className="text-elder-base text-warm-text">订单号：{supportContextDetail.orderId}</p>
+                  )}
+                  {supportContextDetail.game && (
+                    <p className="text-elder-base text-warm-text">游戏：{supportContextDetail.game}</p>
+                  )}
+                  {supportContextDetail.server && (
+                    <p className="text-elder-base text-warm-text">区服：{supportContextDetail.server}</p>
+                  )}
+                  {supportContextDetail.currentStep && (
+                    <p className="text-elder-base text-warm-text">当前步骤：{supportContextDetail.currentStep}</p>
+                  )}
+                  {supportContextDetail.reason && (
+                    <p className="text-elder-base text-warm-text">问题：{supportContextDetail.reason}</p>
+                  )}
+                  {supportContextDetail.contactPhone && (
+                    <p className="text-elder-base text-warm-text">联系电话：{supportContextDetail.contactPhone}</p>
+                  )}
+                </div>
+              )}
+              <p className="text-elder-sm text-warm-muted mt-2">客服会根据您的具体情况帮您处理</p>
             </div>
             <button onClick={dismissContext} className="p-1 text-warm-muted flex-shrink-0">
               <X className="w-5 h-5" />
             </button>
           </div>
+        )}
+
+        {currentOrder && currentOrder.csContactRecords && currentOrder.csContactRecords.length > 0 && (
+          <section className="space-y-3">
+            <h2 className="elder-section-title">咨询记录</h2>
+            <div className="space-y-3">
+              {currentOrder.csContactRecords.map((record) => (
+                <div key={record.id} className="elder-card space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-5 h-5 text-brand" />
+                      <span className="text-elder-sm text-warm-muted">{record.time}</span>
+                    </div>
+                    <span
+                      className={`text-elder-sm font-medium px-3 py-1 rounded-full ${
+                        record.status === '已解决'
+                          ? 'bg-safe/10 text-safe'
+                          : record.status === '处理中'
+                          ? 'bg-brand/10 text-brand'
+                          : 'bg-warm-text/10 text-warm-text'
+                      }`}
+                    >
+                      {record.status}
+                    </span>
+                  </div>
+                  <p className="text-elder-base font-medium text-warm-text">{record.reason}</p>
+                  {record.notes && (
+                    <p className="text-elder-sm text-warm-muted">{record.notes}</p>
+                  )}
+                  {record.expectedFeedbackAt && (
+                    <p className="text-elder-sm text-warm-muted">预计反馈时间：{record.expectedFeedbackAt}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
         )}
 
         <section className="space-y-3">

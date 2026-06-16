@@ -23,7 +23,7 @@ const fieldExamples: Record<string, string> = {
 
 const Sell: React.FC = () => {
   const navigate = useNavigate()
-  const { sellStep, sellForm, updateSellStep, setSellForm, addOrder, setSupportContext } = useTradeStore()
+  const { sellStep, sellForm, updateSellStep, setSellForm, addOrder, setSupportContext, setSupportContextDetail, generateFamilyShareCode, orders } = useTradeStore()
   const { showRiskAlert, riskAlert, closeRiskAlert } = useUIStore()
   const [riskTitle, setRiskTitle] = useState('')
   const [examples, setExamples] = useState<Record<string, boolean>>({})
@@ -47,10 +47,14 @@ const Sell: React.FC = () => {
   const handleRiskClose = () => {
     closeRiskAlert()
     const now = new Date().toLocaleString('zh-CN')
+    const orderId = `ORD${Date.now()}`
     addOrder({
-      id: `ORD${Date.now()}`,
+      id: orderId,
       type: 'sell',
       game: sellForm.game,
+      server: sellForm.server,
+      level: sellForm.level,
+      contactPhone: sellForm.contactPhone,
       status: '进行中',
       currentStep: 1,
       totalSteps: 5,
@@ -64,15 +68,44 @@ const Sell: React.FC = () => {
         { name: '平台放款', status: 'pending', hint: '换绑完成后，平台把钱打到您的账户' },
       ],
       sellFormInfo: `${sellForm.game} ${sellForm.server} ${sellForm.level}`,
+      familyViewRecords: [],
+      csContactRecords: [],
+      receiptOperationLogs: [],
     })
+    generateFamilyShareCode(orderId)
     updateSellStep(3)
   }
 
   const handleHelpPhone = () => {
-    const context = sellStep < 3
-      ? `卖号流程（${sellForm.game || '未选游戏'}）- 步骤${sellStep + 1}/${stepLabels.length}`
-      : `卖号已完成（${sellForm.game}）`
-    setSupportContext(context)
+    let orderId = ''
+    let game = sellForm.game || '未选游戏'
+    let server = sellForm.server || ''
+    let currentStep = ''
+    let reason = '卖号流程求助'
+    const contactPhone = sellForm.contactPhone || ''
+
+    if (sellStep < 3) {
+      currentStep = stepLabels[sellStep]
+      const stepInfo = `卖号流程中 - 步骤${sellStep + 1}/${stepLabels.length}`
+      const serverInfo = server ? ` ${server}` : ''
+      const levelInfo = sellForm.level ? `-${sellForm.level}` : ''
+      setSupportContext(`卖号(${game}${serverInfo}${levelInfo}) - ${stepInfo} - ${currentStep} - ${reason}`)
+    } else if (sellStep === 3) {
+      const sellOrders = orders.filter(o => o.type === 'sell').sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      const latestOrder = sellOrders[0]
+      if (latestOrder) {
+        orderId = latestOrder.id
+        game = latestOrder.game
+        server = latestOrder.server || ''
+        const stepIndex = Math.min(latestOrder.currentStep, latestOrder.steps.length - 1)
+        currentStep = latestOrder.steps[stepIndex]?.name || ''
+        reason = `${currentStep}求助`
+      }
+      const serverInfo = server ? ` ${server}` : ''
+      setSupportContext(`卖号(${game}${serverInfo}) - 订单${orderId} - ${currentStep} - ${reason}`)
+    }
+
+    setSupportContextDetail({ orderId, game, server, currentStep, reason, contactPhone })
     navigate('/support')
   }
 

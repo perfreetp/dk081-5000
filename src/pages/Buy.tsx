@@ -33,7 +33,7 @@ const safetyLabels: Record<string, string> = {
 
 const Buy: React.FC = () => {
   const navigate = useNavigate()
-  const { addOrder } = useTradeStore()
+  const { addOrder, generateFamilyShareCode, setSupportContext, setSupportContextDetail } = useTradeStore()
   const { showRiskAlert, riskAlert, closeRiskAlert } = useUIStore()
   const [selectedGame, setSelectedGame] = useState('')
   const [selectedAccount, setSelectedAccount] = useState<MockAccount | null>(null)
@@ -53,15 +53,22 @@ const Buy: React.FC = () => {
     closeRiskAlert()
     if (selectedAccount) {
       const now = new Date().toLocaleString('zh-CN')
+      const newOrderId = `ORD${Date.now()}`
       addOrder({
-        id: `ORD${Date.now()}`,
+        id: newOrderId,
         type: 'buy',
         game: selectedAccount.game,
+        server: selectedAccount.server,
+        level: selectedAccount.level,
         status: '进行中',
         currentStep: 1,
         totalSteps: 5,
         amount: selectedAccount.price,
         createdAt: now,
+        contactPhone: '',
+        familyViewRecords: [],
+        csContactRecords: [],
+        receiptOperationLogs: [],
         steps: [
           { name: '选购账号', status: 'completed', time: now, hint: '您已选定账号' },
           { name: '确认购买', status: 'completed', time: now, hint: '购买已确认' },
@@ -70,6 +77,7 @@ const Buy: React.FC = () => {
           { name: '买家验收确认', status: 'pending', hint: '等卖家换绑完成后，您确认没问题才算完成' },
         ],
       })
+      generateFamilyShareCode(newOrderId)
     }
     setShowSuccess(true)
   }
@@ -234,7 +242,11 @@ const Buy: React.FC = () => {
         <div className="flex gap-3 mt-6">
           <button
             className="elder-btn-secondary flex-1 flex items-center justify-center gap-2"
-            onClick={() => navigate('/support')}
+            onClick={() => {
+              setSupportContext(`买号咨询(${selectedAccount.game}) - 查看验号结果`)
+              setSupportContextDetail({ game: selectedAccount.game, currentStep: '查看详情', reason: '买号咨询' })
+              navigate('/support')
+            }}
           >
             <Phone className="w-5 h-5" />
             联系客服咨询

@@ -7,10 +7,35 @@ export interface StepItem {
   hint?: string
 }
 
+export interface FamilyViewRecord {
+  viewedAt: string
+  viewerInfo?: string
+}
+
+export interface CsContactRecord {
+  id: string
+  time: string
+  reason: string
+  timeoutNode?: string
+  status: '待处理' | '处理中' | '已解决'
+  expectedFeedbackAt?: string
+  notes?: string
+}
+
+export interface ReceiptOperationLog {
+  id: string
+  type: 'download' | 'forward'
+  docType: string
+  time: string
+  target?: string
+}
+
 export interface Order {
   id: string
   type: 'sell' | 'buy'
   game: string
+  server?: string
+  level?: string
   status: '进行中' | '已完成' | '异常超时'
   currentStep: number
   totalSteps: number
@@ -19,6 +44,11 @@ export interface Order {
   completedAt?: string
   steps: StepItem[]
   sellFormInfo?: string
+  contactPhone?: string
+  familyShareCode?: string
+  familyViewRecords: FamilyViewRecord[]
+  csContactRecords: CsContactRecord[]
+  receiptOperationLogs: ReceiptOperationLog[]
 }
 
 export interface AccountInfo {
@@ -50,6 +80,14 @@ interface TradeState {
   accountInfo: AccountInfo | null
   sellForm: SellFormData
   supportContext: string
+  supportContextDetail: {
+    orderId?: string
+    game?: string
+    server?: string
+    currentStep?: string
+    reason?: string
+    contactPhone?: string
+  }
 
   updateSellStep: (step: number) => void
   updateBuyStep: (step: number) => void
@@ -59,6 +97,12 @@ interface TradeState {
   resetSell: () => void
   resetBuy: () => void
   setSupportContext: (ctx: string) => void
+  setSupportContextDetail: (detail: Partial<TradeState['supportContextDetail']>) => void
+  addCsContactRecord: (orderId: string, record: Omit<CsContactRecord, 'id'>) => void
+  addReceiptOperationLog: (orderId: string, log: Omit<ReceiptOperationLog, 'id'>) => void
+  addFamilyViewRecord: (orderId: string, record: FamilyViewRecord) => void
+  generateFamilyShareCode: (orderId: string) => string
+  getOrderByShareCode: (code: string) => Order | undefined
 }
 
 const initialSellForm: SellFormData = {
@@ -75,7 +119,16 @@ const STORAGE_KEY = 'anxinhao_orders'
 const loadOrders = (): Order[] => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw) : []
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      return parsed.map((o: Order) => ({
+        ...o,
+        familyViewRecords: o.familyViewRecords || [],
+        csContactRecords: o.csContactRecords || [],
+        receiptOperationLogs: o.receiptOperationLogs || [],
+      }))
+    }
+    return []
   } catch {
     return []
   }
@@ -95,6 +148,7 @@ export const useTradeStore = create<TradeState>((set, get) => ({
   accountInfo: null,
   sellForm: initialSellForm,
   supportContext: '',
+  supportContextDetail: {},
 
   updateSellStep: (step) => set({ sellStep: step }),
   updateBuyStep: (step) => set({ buyStep: step }),
@@ -115,4 +169,51 @@ export const useTradeStore = create<TradeState>((set, get) => ({
   resetSell: () => set({ sellStep: 0, sellForm: initialSellForm }),
   resetBuy: () => set({ buyStep: 0 }),
   setSupportContext: (ctx) => set({ supportContext: ctx }),
+  setSupportContextDetail: (detail) =>
+    set((state) => ({
+      supportContextDetail: { ...state.supportContextDetail, ...detail },
+    })),
+  addCsContactRecord: (orderId, record) => {
+    const newRecord = { ...record, id: `CS${Date.now()}` }
+    const newOrders = get().orders.map((o) =>
+      o.id === orderId
+        ? { ...o, csContactRecords: [...o.csContactRecords, newRecord] }
+        : o
+    )
+    saveOrders(newOrders)
+    set({ orders: newOrders })
+  },
+  addReceiptOperationLog: (orderId, log) => {
+    const newLog = { ...log, id: `LOG${Date.now()}` }
+    const newOrders = get().orders.map((o) =>
+      o.id === orderId
+        ? { ...o, receiptOperationLogs: [...o.receiptOperationLogs, newLog] }
+        : o
+    )
+    saveOrders(newOrders)
+    set({ orders: newOrders })
+  },
+  addFamilyViewRecord: (orderId, record) => {
+    const newOrders = get().orders.map((o) =>
+      o.id === orderId
+        ? { ...o, familyViewRecords: [...o.familyViewRecords, record] }
+        : o
+    )
+    saveOrders(newOrders)
+    set({ orders: newOrders })
+  },
+  generateFamilyShareCode: (orderId) => {
+    const code = `AX${orderId.slice(-6)}${Date.now().toString().slice(-4)}`
+    const newOrders = get().orders.map((o) =>
+      o.id === orderId ? { ...o, familyShareCode: code } : o
+    )
+    saveOrders(newOrders)
+    set({ orders: newOrders })
+    return code
+  },
+  getOrderByShareCode: (code) => {
+    return get().orders.find(
+      (o) => o.familyShareCode === code || o.id === code
+    )
+  },
 }))
