@@ -3,10 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import {
   Check, AlertTriangle, Volume2, Share2, FileText,
   Download, Forward, ClipboardList, Phone, Clock, Shield,
-  Users, Copy, CheckCircle2, MessageSquare, Hourglass
+  Users, Copy, CheckCircle2, MessageSquare, Hourglass, Package
 } from 'lucide-react'
 import { useTradeStore, type Order } from '@/stores/useTradeStore'
-import { mockOrders } from '@/data/mockData'
 
 type TabKey = 'active' | 'timeout' | 'completed'
 
@@ -70,6 +69,7 @@ const Orders: React.FC = () => {
   const navigate = useNavigate()
   const storeOrders = useTradeStore((s) => s.orders)
   const setSupportContext = useTradeStore((s) => s.setSupportContext)
+  const setSupportContextDetail = useTradeStore((s) => s.setSupportContextDetail)
   const addCsContactRecord = useTradeStore((s) => s.addCsContactRecord)
   const addReceiptOperationLog = useTradeStore((s) => s.addReceiptOperationLog)
   const generateFamilyShareCode = useTradeStore((s) => s.generateFamilyShareCode)
@@ -77,7 +77,7 @@ const Orders: React.FC = () => {
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null)
   const [toastMsg, setToastMsg] = useState<string | null>(null)
 
-  const allOrders = [...mockOrders, ...storeOrders]
+  const allOrders = storeOrders
 
   const filtered = allOrders.filter((o) => {
     if (activeTab === 'active') return o.status === '进行中'
@@ -95,7 +95,7 @@ const Orders: React.FC = () => {
     if (!code) {
       code = generateFamilyShareCode(order.id)
     }
-    const shareUrl = `${window.location.origin}/family-view?orderId=${order.id}&code=${code}`
+    const shareUrl = `${window.location.origin}/family-view?orderId=${order.id}&shareCode=${code}&code=${code}`
     if (navigator.clipboard) {
       navigator.clipboard.writeText(shareUrl).then(() => {
         showToast('链接已复制，发给家人就能看订单进度')
@@ -112,13 +112,27 @@ const Orders: React.FC = () => {
   const handleAddCsContact = (order: Order, reason: string) => {
     const now = new Date()
     const expectedAt = new Date(now.getTime() + 2 * 60 * 60 * 1000)
+    const timeoutStep = order.steps.find(s => s.status === 'timeout')
     addCsContactRecord(order.id, {
       time: formatDate(now),
       reason,
       status: '待处理',
+      timeoutNode: timeoutStep?.name,
       expectedFeedbackAt: formatDate(expectedAt),
     })
-    showToast('已提交客服处理，预计2小时内回复')
+    setSupportContext(`${order.type === 'sell' ? '卖号' : '买号'}(${order.game}) - ${reason}`)
+    const activeStep = order.steps.find(s => s.status === 'active' || s.status === 'timeout')
+    setSupportContextDetail({
+      orderId: order.id,
+      game: order.game,
+      server: order.server,
+      currentStep: activeStep?.name,
+      reason,
+      contactPhone: order.contactPhone,
+      timeoutNode: timeoutStep?.name,
+      expectedFeedbackAt: formatDate(expectedAt),
+    })
+    navigate('/support')
   }
 
   const handleTimeoutContact = (order: Order) => {
@@ -126,14 +140,27 @@ const Orders: React.FC = () => {
     if (!timeoutStep) return
     const now = new Date()
     const expectedAt = new Date(now.getTime() + 2 * 60 * 60 * 1000)
+    const reason = `${timeoutStep.name}超时，请求协助`
     addCsContactRecord(order.id, {
       time: formatDate(now),
-      reason: `${timeoutStep.name}超时，请求协助`,
+      reason,
       timeoutNode: timeoutStep.name,
       status: '待处理',
       expectedFeedbackAt: formatDate(expectedAt),
     })
-    showToast('已提交超时处理申请，客服会尽快联系您')
+    setSupportContext(`${order.type === 'sell' ? '卖号' : '买号'}(${order.game}) - ${timeoutStep.name}超时 - 紧急求助`)
+    setSupportContextDetail({
+      orderId: order.id,
+      game: order.game,
+      server: order.server,
+      currentStep: timeoutStep.name,
+      reason,
+      contactPhone: order.contactPhone,
+      timeoutNode: timeoutStep.name,
+      expectedFeedbackAt: formatDate(expectedAt),
+    })
+    showToast('已提交超时处理申请，跳转客服页面...')
+    setTimeout(() => navigate('/support'), 500)
   }
 
   const handleDownload = (order: Order, docType: string) => {
@@ -157,17 +184,14 @@ const Orders: React.FC = () => {
   }
 
   const handleForwardAll = (order: Order) => {
-    const docs = getReceiptDocs(order)
     const now = new Date()
-    docs.forEach(doc => {
-      addReceiptOperationLog(order.id, {
-        type: 'forward',
-        docType: doc.type,
-        time: formatDate(now),
-        target: '家人',
-      })
+    addReceiptOperationLog(order.id, {
+      type: 'forward',
+      docType: '全部交易凭证（打包）',
+      time: formatDate(now),
+      target: '家人',
     })
-    showToast('全部凭证已打包，可转发给家人')
+    showToast('已打包全部凭证，转发链接已复制')
   }
 
   const renderTimelineStep = (
@@ -237,39 +261,72 @@ const Orders: React.FC = () => {
   )
 
   const getReceiptDocs = (order: Order) => {
-    const docs = [
-      { type: '交易合同', time: order.createdAt, desc: '平台担保交易协议', ready: true },
+    const docs: { type: string; time: string; desc: string; ready: boolean }[] = [
+      {
+        type: '交易合同',
+        time: order.createdAt,
+        desc: '平台担保交易协议，下单即生成',
+        ready: true,
+      },
     ]
-    const payStep = order.steps.find(s =>
+
+    const payStep = order.steps.find((s) =>
       s.name.includes('付款') && s.status === 'completed'
     )
     if (payStep) {
       docs.push({
         type: order.type === 'sell' ? '收款确认' : '付款凭证',
         time: payStep.time || '',
-        desc: order.type === 'sell' ? '平台确认已收到买家款项' : '您已付款至平台担保账户',
+        desc:
+          order.type === 'sell'
+            ? '平台确认已收到买家款项'
+            : '您已付款至平台担保账户',
         ready: true,
       })
+    } else {
+      docs.push({
+        type: order.type === 'sell' ? '收款确认' : '付款凭证',
+        time: '',
+        desc: '等待买家付款，完成后平台自动生成',
+        ready: false,
+      })
     }
-    const bindStep = order.steps.find(s =>
+
+    const bindStep = order.steps.find((s) =>
       s.name.includes('换绑') && s.status === 'completed'
     )
     if (bindStep) {
       docs.push({
         type: '换绑确认书',
         time: bindStep.time || '',
-        desc: '账号已成功换绑，双方确认',
+        desc: '账号已成功换绑至买家手机，双方确认',
         ready: true,
       })
+    } else {
+      docs.push({
+        type: '换绑确认书',
+        time: '',
+        desc: '等待换绑操作完成，完成后自动生成',
+        ready: false,
+      })
     }
+
     if (order.status === '已完成') {
       docs.push({
         type: '交易完成确认',
         time: order.completedAt || order.steps.slice(-1)[0]?.time || '',
-        desc: '交易全部完成，凭证可留存备查',
+        desc: '交易全部流程完成，凭证可留存备查',
         ready: true,
       })
+    } else {
+      docs.push({
+        type: '交易完成确认',
+        time: '',
+        desc: '所有步骤完成后，平台自动生成',
+        ready: false,
+      })
     }
+
     return docs
   }
 
@@ -492,28 +549,58 @@ const Orders: React.FC = () => {
             {receiptDocs.map((doc) => (
               <div
                 key={doc.type}
-                className="flex items-center gap-3 bg-brand-50 rounded-elder-sm p-3"
+                className={`flex items-center gap-3 rounded-elder-sm p-3 ${
+                  doc.ready ? 'bg-brand-50' : 'bg-warm-bg border border-warm-border'
+                }`}
               >
-                <FileText className="w-5 h-5 text-brand flex-shrink-0" />
+                <FileText
+                  className={`w-5 h-5 flex-shrink-0 ${
+                    doc.ready ? 'text-brand' : 'text-warm-muted'
+                  }`}
+                />
                 <div className="flex-1 min-w-0">
-                  <p className="text-elder-sm font-semibold text-warm-text">{doc.type}</p>
+                  <div className="flex items-center gap-2">
+                    <p
+                      className={`text-elder-sm font-semibold ${
+                        doc.ready ? 'text-warm-text' : 'text-warm-muted'
+                      }`}
+                    >
+                      {doc.type}
+                    </p>
+                    {!doc.ready && (
+                      <span className="text-elder-xs font-medium px-2 py-0.5 rounded-full bg-warn/10 text-warn">
+                        等待平台补齐
+                      </span>
+                    )}
+                  </div>
                   <p className="text-elder-xs text-warm-muted">{doc.desc}</p>
-                  {doc.time && <p className="text-elder-xs text-warm-muted">{doc.time}</p>}
+                  {doc.time && (
+                    <p className="text-elder-xs text-warm-muted">{doc.time}</p>
+                  )}
                 </div>
-                <button
-                  className="p-2 text-warm-muted active:text-safe rounded-lg active:bg-safe/10 transition-colors"
-                  onClick={() => handleDownload(order, doc.type)}
-                  title="下载"
-                >
-                  <Download className="w-5 h-5" />
-                </button>
-                <button
-                  className="p-2 text-warm-muted active:text-brand rounded-lg active:bg-brand/10 transition-colors"
-                  onClick={() => handleForward(order, doc.type)}
-                  title="转发"
-                >
-                  <Forward className="w-5 h-5" />
-                </button>
+                {doc.ready ? (
+                  <>
+                    <button
+                      className="p-2 text-warm-muted active:text-safe rounded-lg active:bg-safe/10 transition-colors"
+                      onClick={() => handleDownload(order, doc.type)}
+                      title="下载"
+                    >
+                      <Download className="w-5 h-5" />
+                    </button>
+                    <button
+                      className="p-2 text-warm-muted active:text-brand rounded-lg active:bg-brand/10 transition-colors"
+                      onClick={() => handleForward(order, doc.type)}
+                      title="转发"
+                    >
+                      <Forward className="w-5 h-5" />
+                    </button>
+                  </>
+                ) : (
+                  <div className="flex items-center gap-1 text-warm-muted text-elder-xs">
+                    <Hourglass className="w-4 h-4" />
+                    <span>待生成</span>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -547,24 +634,52 @@ const Orders: React.FC = () => {
         {order.status === '已完成' && (
           <div className="bg-gradient-to-br from-safe/20 via-brand/10 to-warm-bg rounded-elder p-5 border border-safe/30">
             <div className="text-center mb-4">
+              <div className="w-14 h-14 mx-auto bg-safe/10 rounded-full flex items-center justify-center mb-3">
+                <CheckCircle2 className="w-8 h-8 text-safe" />
+              </div>
               <p className="text-elder-xl font-bold text-warm-text mb-1">🎉 交易已完成</p>
               <p className="text-elder-base text-warm-text">
                 您的{order.game}账号交易已完成，¥{order.amount}已到账
               </p>
             </div>
             <div className="bg-white/60 rounded-elder p-4 mb-4">
-              <p className="text-elder-sm font-semibold text-warm-text mb-3">交易文档清单</p>
-              <div className="space-y-2">
+              <p className="text-elder-sm font-semibold text-warm-text mb-3 flex items-center gap-2">
+                <Package className="w-5 h-5 text-brand" />
+                交易文档清单
+              </p>
+              <div className="space-y-3">
                 {receiptDocs.map((doc) => (
-                  <div key={doc.type} className="flex items-center gap-2 text-elder-sm">
+                  <div
+                    key={doc.type}
+                    className="flex items-start gap-2 text-elder-sm"
+                  >
                     {doc.ready ? (
-                      <CheckCircle2 className="w-5 h-5 text-safe flex-shrink-0" />
+                      <CheckCircle2 className="w-5 h-5 text-safe flex-shrink-0 mt-0.5" />
                     ) : (
-                      <Hourglass className="w-5 h-5 text-warn flex-shrink-0" />
+                      <Hourglass className="w-5 h-5 text-warn flex-shrink-0 mt-0.5" />
                     )}
-                    <span className={doc.ready ? 'text-warm-text' : 'text-warm-muted'}>
-                      {doc.type}
-                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={
+                            doc.ready ? 'text-warm-text font-semibold' : 'text-warm-muted'
+                          }
+                        >
+                          {doc.type}
+                        </span>
+                        {!doc.ready && (
+                          <span className="text-elder-xs text-warn">
+                            （等待平台补齐）
+                          </span>
+                        )}
+                      </div>
+                      {doc.time && (
+                        <p className="text-elder-xs text-warm-muted mt-0.5">
+                          生成时间：{doc.time}
+                        </p>
+                      )}
+                      <p className="text-elder-xs text-warm-muted mt-0.5">{doc.desc}</p>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -583,7 +698,10 @@ const Orders: React.FC = () => {
                 </p>
                 <div className="space-y-1">
                   {order.familyViewRecords.map((record, i) => (
-                    <div key={i} className="flex items-center justify-between text-elder-xs">
+                    <div
+                      key={i}
+                      className="flex items-center justify-between text-elder-xs"
+                    >
                       <span className="text-warm-muted">{record.viewedAt}</span>
                       <span className="text-warm-text">{record.viewerInfo || '家人'}</span>
                     </div>

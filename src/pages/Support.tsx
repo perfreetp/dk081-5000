@@ -165,8 +165,14 @@ const Support: React.FC = () => {
                   {supportContextDetail.currentStep && (
                     <p className="text-elder-base text-warm-text">当前步骤：{supportContextDetail.currentStep}</p>
                   )}
+                  {supportContextDetail.timeoutNode && (
+                    <p className="text-elder-base text-danger font-semibold">⚠️ 超时节点：{supportContextDetail.timeoutNode}</p>
+                  )}
                   {supportContextDetail.reason && (
                     <p className="text-elder-base text-warm-text">问题：{supportContextDetail.reason}</p>
+                  )}
+                  {supportContextDetail.expectedFeedbackAt && (
+                    <p className="text-elder-base text-warn font-semibold">⏰ 预计反馈：{supportContextDetail.expectedFeedbackAt}</p>
                   )}
                   {supportContextDetail.contactPhone && (
                     <p className="text-elder-base text-warm-text">联系电话：{supportContextDetail.contactPhone}</p>

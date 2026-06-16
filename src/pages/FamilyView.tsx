@@ -5,11 +5,11 @@ import {
   Eye, Lock, RefreshCw, Link2Off, Info
 } from 'lucide-react'
 import { useTradeStore, type Order } from '@/stores/useTradeStore'
-import { mockOrders } from '@/data/mockData'
 
 const FamilyView: React.FC = () => {
   const [searchParams] = useSearchParams()
-  const shareCode = searchParams.get('shareCode')
+  const shareCodeParam = searchParams.get('shareCode')
+  const codeParam = searchParams.get('code')
   const orderId = searchParams.get('orderId')
   const [refreshKey, setRefreshKey] = useState(0)
 
@@ -17,14 +17,14 @@ const FamilyView: React.FC = () => {
   const getOrderByShareCode = useTradeStore((s) => s.getOrderByShareCode)
   const addFamilyViewRecord = useTradeStore((s) => s.addFamilyViewRecord)
 
-  const allOrders = [...mockOrders, ...storeOrders]
+  const shareCode = shareCodeParam || codeParam
 
   let order: Order | undefined
   if (shareCode) {
-    order = getOrderByShareCode(shareCode) || allOrders.find(o => o.familyShareCode === shareCode)
+    order = getOrderByShareCode(shareCode) || storeOrders.find(o => o.familyShareCode === shareCode)
   }
   if (!order && orderId) {
-    order = allOrders.find(o => o.id === orderId)
+    order = storeOrders.find(o => o.id === orderId)
   }
 
   useEffect(() => {
@@ -66,25 +66,25 @@ const FamilyView: React.FC = () => {
                 <div className="w-8 h-8 bg-brand-100 rounded-full flex items-center justify-center flex-shrink-0">
                   <span className="text-brand font-bold text-elder-sm">1</span>
                 </div>
-                <p className="text-elder-sm text-warm-text pt-1">让家人打开安心号App</p>
+                <p className="text-elder-sm text-warm-text pt-1">让下单的家人打开安心号App</p>
               </div>
               <div className="flex items-start gap-3">
                 <div className="w-8 h-8 bg-brand-100 rounded-full flex items-center justify-center flex-shrink-0">
                   <span className="text-brand font-bold text-elder-sm">2</span>
                 </div>
-                <p className="text-elder-sm text-warm-text pt-1">找到对应订单</p>
+                <p className="text-elder-sm text-warm-text pt-1">点击底部"订单进度"，找到对应的订单</p>
               </div>
               <div className="flex items-start gap-3">
                 <div className="w-8 h-8 bg-brand-100 rounded-full flex items-center justify-center flex-shrink-0">
                   <span className="text-brand font-bold text-elder-sm">3</span>
                 </div>
-                <p className="text-elder-sm text-warm-text pt-1">点击"生成家人查看链接"</p>
+                <p className="text-elder-sm text-warm-text pt-1">点击订单展开详情，找到"家人共享"区域</p>
               </div>
               <div className="flex items-start gap-3">
                 <div className="w-8 h-8 bg-brand-100 rounded-full flex items-center justify-center flex-shrink-0">
                   <span className="text-brand font-bold text-elder-sm">4</span>
                 </div>
-                <p className="text-elder-sm text-warm-text pt-1">重新发送给您</p>
+                <p className="text-elder-sm text-warm-text pt-1">点击"复制分享链接"，再重新发给您</p>
               </div>
             </div>
           </div>

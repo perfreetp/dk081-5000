@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { mockOrders } from '@/data/mockData'
 
 export interface StepItem {
   name: string
@@ -87,6 +88,8 @@ interface TradeState {
     currentStep?: string
     reason?: string
     contactPhone?: string
+    timeoutNode?: string
+    expectedFeedbackAt?: string
   }
 
   updateSellStep: (step: number) => void
@@ -119,18 +122,26 @@ const STORAGE_KEY = 'anxinhao_orders'
 const loadOrders = (): Order[] => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
+    let stored: Order[] = []
     if (raw) {
       const parsed = JSON.parse(raw)
-      return parsed.map((o: Order) => ({
+      stored = parsed.map((o: Order) => ({
         ...o,
         familyViewRecords: o.familyViewRecords || [],
         csContactRecords: o.csContactRecords || [],
         receiptOperationLogs: o.receiptOperationLogs || [],
       }))
     }
-    return []
+    const mockIds = new Set(mockOrders.map((m) => m.id))
+    const storedFiltered = stored.filter((s) => !mockIds.has(s.id))
+    const mockMerged = mockOrders.map((mock) => {
+      const found = stored.find((s) => s.id === mock.id)
+      if (found) return found
+      return { ...mock } as Order
+    })
+    return [...mockMerged, ...storedFiltered]
   } catch {
-    return []
+    return mockOrders as Order[]
   }
 }
 
