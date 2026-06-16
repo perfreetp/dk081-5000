@@ -52,21 +52,22 @@ const Buy: React.FC = () => {
   const handleRiskClose = () => {
     closeRiskAlert()
     if (selectedAccount) {
+      const now = new Date().toLocaleString('zh-CN')
       addOrder({
         id: `ORD${Date.now()}`,
         type: 'buy',
         game: selectedAccount.game,
-        status: '已提交',
+        status: '进行中',
         currentStep: 1,
         totalSteps: 5,
         amount: selectedAccount.price,
-        createdAt: new Date().toLocaleString('zh-CN'),
+        createdAt: now,
         steps: [
-          { name: '选购账号', status: 'completed', time: new Date().toLocaleString('zh-CN') },
-          { name: '确认购买', status: 'completed', time: new Date().toLocaleString('zh-CN') },
-          { name: '付款至担保账户', status: 'active' },
-          { name: '卖家换绑账号', status: 'pending' },
-          { name: '买家验收确认', status: 'pending' },
+          { name: '选购账号', status: 'completed', time: now, hint: '您已选定账号' },
+          { name: '确认购买', status: 'completed', time: now, hint: '购买已确认' },
+          { name: '付款至担保账户', status: 'active', hint: '您的钱将打到平台保管，安全！不会到卖家手里' },
+          { name: '卖家换绑账号', status: 'pending', hint: '等卖家把账号换绑到您的手机上，客服会跟进' },
+          { name: '买家验收确认', status: 'pending', hint: '等卖家换绑完成后，您确认没问题才算完成' },
         ],
       })
     }

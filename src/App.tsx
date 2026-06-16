@@ -5,6 +5,7 @@ import Sell from "@/pages/Sell";
 import Buy from "@/pages/Buy";
 import Orders from "@/pages/Orders";
 import Support from "@/pages/Support";
+import FamilyView from "@/pages/FamilyView";
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
           <Route path="/orders" element={<Orders />} />
           <Route path="/support" element={<Support />} />
         </Route>
+        <Route path="/family-view" element={<FamilyView />} />
       </Routes>
     </Router>
   );

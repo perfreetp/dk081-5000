@@ -31,17 +31,19 @@ export interface StepItem {
   name: string
   status: 'completed' | 'active' | 'pending' | 'timeout'
   time?: string
+  hint?: string
 }
 
 export interface MockOrder {
   id: string
   type: 'sell' | 'buy'
   game: string
-  status: string
+  status: '进行中' | '已完成' | '异常超时'
   currentStep: number
   totalSteps: number
   amount: number
   createdAt: string
+  completedAt?: string
   steps: StepItem[]
 }
 
@@ -152,28 +154,28 @@ export const mockOrders: MockOrder[] = [
     amount: 680,
     createdAt: '2026-06-01 14:30',
     steps: [
-      { name: '提交账号信息', status: 'completed', time: '2026-06-01 14:30' },
-      { name: '平台验号', status: 'completed', time: '2026-06-01 15:20' },
-      { name: '买家付款至担保', status: 'active', time: '2026-06-01 16:45' },
-      { name: '卖家换绑账号', status: 'pending' },
-      { name: '平台放款', status: 'pending' },
+      { name: '提交账号信息', status: 'completed', time: '2026-06-01 14:30', hint: '您已提交，平台正在审核' },
+      { name: '平台验号', status: 'completed', time: '2026-06-01 15:20', hint: '验号通过，账号信息真实' },
+      { name: '买家付款至担保', status: 'active', hint: '正在等买家付款，平台保管钱，您不用着急' },
+      { name: '卖家换绑账号', status: 'pending', hint: '等买家付完款，客服会电话教您怎么换绑' },
+      { name: '平台放款', status: 'pending', hint: '换绑完成后，平台把钱打到您的账户' },
     ],
   },
   {
     id: 'ORD20260602002',
     type: 'buy',
     game: '原神',
-    status: '进行中',
+    status: '异常超时',
     currentStep: 4,
     totalSteps: 5,
     amount: 1200,
     createdAt: '2026-06-02 09:15',
     steps: [
-      { name: '选购账号', status: 'completed', time: '2026-06-02 09:15' },
-      { name: '确认购买', status: 'completed', time: '2026-06-02 09:40' },
-      { name: '付款至担保账户', status: 'completed', time: '2026-06-02 10:05' },
-      { name: '卖家换绑账号', status: 'timeout', time: '2026-06-02 14:00' },
-      { name: '买家验收确认', status: 'pending' },
+      { name: '选购账号', status: 'completed', time: '2026-06-02 09:15', hint: '您已选定账号' },
+      { name: '确认购买', status: 'completed', time: '2026-06-02 09:40', hint: '购买已确认' },
+      { name: '付款至担保账户', status: 'completed', time: '2026-06-02 10:05', hint: '您的钱已在平台保管，安全' },
+      { name: '卖家换绑账号', status: 'timeout', time: '2026-06-02 14:00', hint: '卖家换绑超时了！您的钱还在平台，不会丢。建议联系客服催促卖家' },
+      { name: '买家验收确认', status: 'pending', hint: '等卖家换绑完成后，您确认没问题才算完成' },
     ],
   },
   {
@@ -185,12 +187,13 @@ export const mockOrders: MockOrder[] = [
     totalSteps: 5,
     amount: 350,
     createdAt: '2026-05-28 11:00',
+    completedAt: '2026-05-28 17:00',
     steps: [
-      { name: '提交账号信息', status: 'completed', time: '2026-05-28 11:00' },
-      { name: '平台验号', status: 'completed', time: '2026-05-28 12:30' },
-      { name: '买家付款至担保', status: 'completed', time: '2026-05-28 14:00' },
-      { name: '卖家换绑账号', status: 'completed', time: '2026-05-28 16:20' },
-      { name: '平台放款', status: 'completed', time: '2026-05-28 17:00' },
+      { name: '提交账号信息', status: 'completed', time: '2026-05-28 11:00', hint: '您已提交' },
+      { name: '平台验号', status: 'completed', time: '2026-05-28 12:30', hint: '验号通过' },
+      { name: '买家付款至担保', status: 'completed', time: '2026-05-28 14:00', hint: '买家已付款' },
+      { name: '卖家换绑账号', status: 'completed', time: '2026-05-28 16:20', hint: '换绑完成' },
+      { name: '平台放款', status: 'completed', time: '2026-05-28 17:00', hint: '钱已到您账户' },
     ],
   },
 ]

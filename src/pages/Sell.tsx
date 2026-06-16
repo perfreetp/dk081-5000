@@ -23,7 +23,7 @@ const fieldExamples: Record<string, string> = {
 
 const Sell: React.FC = () => {
   const navigate = useNavigate()
-  const { sellStep, sellForm, updateSellStep, setSellForm, addOrder } = useTradeStore()
+  const { sellStep, sellForm, updateSellStep, setSellForm, addOrder, setSupportContext } = useTradeStore()
   const { showRiskAlert, riskAlert, closeRiskAlert } = useUIStore()
   const [riskTitle, setRiskTitle] = useState('')
   const [examples, setExamples] = useState<Record<string, boolean>>({})
@@ -46,24 +46,34 @@ const Sell: React.FC = () => {
 
   const handleRiskClose = () => {
     closeRiskAlert()
+    const now = new Date().toLocaleString('zh-CN')
     addOrder({
       id: `ORD${Date.now()}`,
       type: 'sell',
       game: sellForm.game,
-      status: '已发布',
+      status: '进行中',
       currentStep: 1,
       totalSteps: 5,
       amount: priceRange[0],
-      createdAt: new Date().toLocaleString('zh-CN'),
+      createdAt: now,
       steps: [
-        { name: '提交账号信息', status: 'completed', time: new Date().toLocaleString('zh-CN') },
-        { name: '平台验号', status: 'active' },
-        { name: '买家付款至担保', status: 'pending' },
-        { name: '卖家换绑账号', status: 'pending' },
-        { name: '平台放款', status: 'pending' },
+        { name: '提交账号信息', status: 'completed', time: now, hint: '您已提交，平台正在审核' },
+        { name: '平台验号', status: 'active', hint: '平台在检查账号信息真不真实，一般1-2小时' },
+        { name: '买家付款至担保', status: 'pending', hint: '正在等买家付款，钱到平台保管，您不用着急' },
+        { name: '卖家换绑账号', status: 'pending', hint: '该您操作了！客服会电话教您一步步换绑' },
+        { name: '平台放款', status: 'pending', hint: '换绑完成后，平台把钱打到您的账户' },
       ],
+      sellFormInfo: `${sellForm.game} ${sellForm.server} ${sellForm.level}`,
     })
     updateSellStep(3)
+  }
+
+  const handleHelpPhone = () => {
+    const context = sellStep < 3
+      ? `卖号流程（${sellForm.game || '未选游戏'}）- 步骤${sellStep + 1}/${stepLabels.length}`
+      : `卖号已完成（${sellForm.game}）`
+    setSupportContext(context)
+    navigate('/support')
   }
 
   const renderStep0 = () => (
@@ -267,8 +277,11 @@ const Sell: React.FC = () => {
         {sellStep === 3 && renderStep3()}
       </div>
 
-      <div className="fixed bottom-6 right-4 z-40">
-        <button className="flex items-center gap-2 bg-safe text-white px-4 py-3 rounded-full shadow-lg animate-pulse-slow text-elder-sm font-semibold">
+      <div className="fixed bottom-24 right-4 z-40">
+        <button
+          onClick={handleHelpPhone}
+          className="flex items-center gap-2 bg-safe text-white px-4 py-3 rounded-full shadow-lg animate-pulse-slow text-elder-sm font-semibold"
+        >
           <Phone className="w-5 h-5" />
           需要帮助？打电话
         </button>

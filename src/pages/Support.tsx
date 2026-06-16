@@ -1,11 +1,21 @@
-import React, { useState, useMemo } from 'react'
-import { Phone, MessageCircle, AlertCircle, ChevronDown, Volume2, Upload, Send } from 'lucide-react'
+import React, { useState, useMemo, useEffect } from 'react'
+import { Phone, MessageCircle, AlertCircle, ChevronDown, Volume2, Upload, Send, X } from 'lucide-react'
+import { useTradeStore } from '@/stores/useTradeStore'
 import { faqItems } from '@/data/mockData'
 
 const Support: React.FC = () => {
+  const supportContext = useTradeStore((s) => s.supportContext)
+  const setSupportContext = useTradeStore((s) => s.setSupportContext)
   const [expandedFaq, setExpandedFaq] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [form, setForm] = useState({ description: '', phone: '' })
+  const [showContext, setShowContext] = useState(true)
+
+  useEffect(() => {
+    if (supportContext) {
+      setShowContext(true)
+    }
+  }, [supportContext])
 
   const groupedFaqs = useMemo(() => {
     const map = new Map<string, typeof faqItems>()
@@ -40,6 +50,22 @@ const Support: React.FC = () => {
     setForm({ description: '', phone: '' })
   }
 
+  const handlePhoneCall = () => {
+    showToast('正在拨打客服电话 400-123-4567...')
+    setTimeout(() => {
+      window.open('tel:4001234567')
+    }, 800)
+  }
+
+  const handleOnlineChat = () => {
+    showToast('正在连接客服...')
+  }
+
+  const dismissContext = () => {
+    setShowContext(false)
+    setSupportContext('')
+  }
+
   const toggleFaq = (question: string) => {
     setExpandedFaq((prev) => (prev === question ? null : question))
   }
@@ -49,10 +75,24 @@ const Support: React.FC = () => {
       <div className="px-4 pt-4 space-y-6">
         <h1 className="elder-section-title">客服帮助</h1>
 
+        {supportContext && showContext && (
+          <div className="bg-brand-50 border border-brand/30 rounded-elder p-4 flex items-start gap-3">
+            <AlertCircle className="w-6 h-6 text-brand flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-elder-sm font-semibold text-brand">您来自：</p>
+              <p className="text-elder-base text-warm-text mt-1">{supportContext}</p>
+              <p className="text-elder-sm text-warm-muted mt-1">客服会根据您的具体情况帮您处理</p>
+            </div>
+            <button onClick={dismissContext} className="p-1 text-warm-muted flex-shrink-0">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        )}
+
         <section className="space-y-3">
           <p className="text-elder-base text-warm-muted">有问题？直接找人帮忙！</p>
           <button
-            onClick={() => window.open('tel:4001234567')}
+            onClick={handlePhoneCall}
             className="w-full bg-brand text-white rounded-elder shadow-btn min-h-[80px] flex flex-col items-center justify-center gap-1 animate-pulse-slow"
           >
             <div className="flex items-center gap-3">
@@ -62,7 +102,7 @@ const Support: React.FC = () => {
             <span className="text-elder-sm text-white/80">工作日 9:00-21:00</span>
           </button>
           <button
-            onClick={() => showToast('正在连接客服...')}
+            onClick={handleOnlineChat}
             className="w-full bg-safe text-white rounded-elder shadow-btn min-h-[80px] flex flex-col items-center justify-center gap-1"
           >
             <div className="flex items-center gap-3">
@@ -73,7 +113,7 @@ const Support: React.FC = () => {
           </button>
         </section>
 
-        <section className="elder-card warm-bg flex flex-col gap-3">
+        <section className="elder-card bg-warm-bg flex flex-col gap-3">
           <div className="flex items-center gap-3">
             <AlertCircle className="w-7 h-7 text-brand flex-shrink-0" />
             <span className="text-elder-lg font-semibold text-warm-text">换绑操作遇到困难？</span>
@@ -82,7 +122,7 @@ const Support: React.FC = () => {
             我们提供电话手把手指导，帮您完成换绑操作
           </p>
           <button
-            onClick={() => window.open('tel:4001234567')}
+            onClick={handlePhoneCall}
             className="elder-btn-secondary flex items-center justify-center gap-2"
           >
             <Phone className="w-5 h-5" />
@@ -145,7 +185,10 @@ const Support: React.FC = () => {
             </div>
             <div>
               <label className="elder-label">上传截图</label>
-              <button className="elder-btn-secondary flex items-center justify-center gap-2 w-full">
+              <button
+                className="elder-btn-secondary flex items-center justify-center gap-2 w-full"
+                onClick={() => showToast('截图功能已打开，请选择图片')}
+              >
                 <Upload className="w-5 h-5" />
                 点击上传截图
               </button>
@@ -169,7 +212,7 @@ const Support: React.FC = () => {
       </div>
 
       {toast && (
-        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-warm-text text-white px-6 py-3 rounded-elder shadow-lg text-elder-base font-semibold z-50">
+        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-warm-text text-white px-6 py-3 rounded-elder shadow-lg text-elder-base font-semibold z-50 text-center max-w-[300px]">
           {toast}
         </div>
       )}
