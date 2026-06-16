@@ -1,0 +1,75 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "WenQuanYi Micro Hei", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  line-height: 1.7;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #FFF7ED;
+  color: #1C1917;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100vh;
+  background-color: #FFF7ED;
+  position: relative;
+  overflow-x: hidden;
+}
+
+@layer components {
+  .elder-card {
+    @apply bg-warm-card rounded-elder p-5 shadow-card;
+  }
+
+  .elder-btn-primary {
+    @apply bg-brand text-white font-semibold text-elder-base rounded-elder
+           min-h-btn-h px-6 flex items-center justify-center gap-2
+           active:bg-brand-dark transition-colors shadow-btn
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .elder-btn-secondary {
+    @apply bg-warm-card text-brand font-semibold text-elder-base rounded-elder
+           min-h-btn-h px-6 flex items-center justify-center gap-2
+           border-2 border-brand active:bg-brand-50 transition-colors;
+  }
+
+  .elder-btn-safe {
+    @apply bg-safe text-white font-semibold text-elder-base rounded-elder
+           min-h-btn-h px-6 flex items-center justify-center gap-2
+           active:bg-green-600 transition-colors;
+  }
+
+  .elder-input {
+    @apply w-full min-h-input-h px-4 text-elder-base bg-warm-card border-2 border-warm-border
+           rounded-elder-sm focus:border-brand focus:outline-none
+           placeholder:text-warm-muted transition-colors;
+  }
+
+  .elder-label {
+    @apply text-elder-base font-semibold text-warm-text mb-2 block;
+  }
+
+  .elder-section-title {
+    @apply text-elder-xl font-bold text-warm-text;
+  }
+}
+
+input, select, textarea {
+  font-size: 16px !important;
+}
+
+::-webkit-scrollbar {
+  display: none;
+}
