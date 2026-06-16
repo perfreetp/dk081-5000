@@ -73,6 +73,7 @@ const Orders: React.FC = () => {
   const addCsContactRecord = useTradeStore((s) => s.addCsContactRecord)
   const addReceiptOperationLog = useTradeStore((s) => s.addReceiptOperationLog)
   const generateFamilyShareCode = useTradeStore((s) => s.generateFamilyShareCode)
+  const addShareRecord = useTradeStore((s) => s.addShareRecord)
   const [activeTab, setActiveTab] = useState<TabKey>('active')
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null)
   const [toastMsg, setToastMsg] = useState<string | null>(null)
@@ -96,6 +97,12 @@ const Orders: React.FC = () => {
       code = generateFamilyShareCode(order.id)
     }
     const shareUrl = `${window.location.origin}/family-view?orderId=${order.id}&shareCode=${code}&code=${code}`
+    addShareRecord(order.id, {
+      time: formatDate(new Date()),
+      target: '家人',
+      channel: '微信',
+      shareCode: code,
+    })
     if (navigator.clipboard) {
       navigator.clipboard.writeText(shareUrl).then(() => {
         showToast('链接已复制，发给家人就能看订单进度')
@@ -116,7 +123,7 @@ const Orders: React.FC = () => {
     addCsContactRecord(order.id, {
       time: formatDate(now),
       reason,
-      status: '待处理',
+      status: '待受理',
       timeoutNode: timeoutStep?.name,
       expectedFeedbackAt: formatDate(expectedAt),
     })
@@ -145,7 +152,7 @@ const Orders: React.FC = () => {
       time: formatDate(now),
       reason,
       timeoutNode: timeoutStep.name,
-      status: '待处理',
+      status: '待受理',
       expectedFeedbackAt: formatDate(expectedAt),
     })
     setSupportContext(`${order.type === 'sell' ? '卖号' : '买号'}(${order.game}) - ${timeoutStep.name}超时 - 紧急求助`)
@@ -332,10 +339,12 @@ const Orders: React.FC = () => {
 
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
-      case '待处理':
+      case '待受理':
         return 'bg-warn/10 text-warn'
       case '处理中':
         return 'bg-brand/10 text-brand'
+      case '已反馈':
+        return 'bg-brand-dark/10 text-brand-dark'
       case '已解决':
         return 'bg-safe/10 text-safe'
       default:
@@ -475,16 +484,58 @@ const Orders: React.FC = () => {
                 生成家人查看链接
               </button>
             )}
+            {order.shareRecords.length > 0 && (
+              <div className="pt-3 border-t border-brand/10 mb-3">
+                <p className="text-elder-sm font-semibold text-warm-text mb-2 flex items-center gap-1.5">
+                  <Forward className="w-4 h-4 text-brand" />
+                  最近分享
+                </p>
+                {order.shareRecords.slice().reverse().slice(0, 3).map((r) => (
+                  <div key={r.id} className="flex items-center justify-between text-elder-sm mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <Share2 className="w-3.5 h-3.5 text-brand flex-shrink-0" />
+                      <span className="text-warm-text">分享给 {r.target}</span>
+                      <span className="text-warm-muted text-elder-xs">通过 {r.channel}</span>
+                    </div>
+                    <span className="text-warm-muted text-elder-xs">{r.time}</span>
+                  </div>
+                ))}
+              </div>
+            )}
             {order.familyViewRecords.length > 0 && (
               <div className="pt-3 border-t border-brand/10">
                 <p className="text-elder-sm text-warm-text mb-2">
                   已有<span className="text-brand font-bold">{order.familyViewRecords.length}</span>位家人查看过
                 </p>
                 <div className="space-y-2">
-                  {order.familyViewRecords.map((record, i) => (
-                    <div key={i} className="flex items-center justify-between text-elder-sm">
-                      <span className="text-warm-muted">{record.viewedAt}</span>
-                      <span className="text-warm-text">{record.viewerInfo || '家人'}</span>
+                  {order.familyViewRecords.slice().reverse().slice(0, 5).map((record) => (
+                    <div key={record.id} className="bg-white/60 rounded-lg p-2.5">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-elder-sm font-semibold text-warm-text">
+                          {record.viewerInfo || '家人'}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {record.hasRead && (
+                            <span className="text-elder-xs bg-safe/10 text-safe px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+                              <Check className="w-2.5 h-2.5" /> 已读
+                            </span>
+                          )}
+                          {record.clickedCsPhone && (
+                            <span className="text-elder-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+                              <Phone className="w-2.5 h-2.5" /> 联系过客服
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between text-elder-xs text-warm-muted">
+                        <span>首次：{record.firstViewedAt}</span>
+                        <span>最近：{record.lastViewedAt} · 查看{record.viewCount}次</span>
+                      </div>
+                      {record.lastCsClickAt && (
+                        <p className="text-elder-xs text-blue-600 mt-1">
+                          最后拨打客服：{record.lastCsClickAt}
+                        </p>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -516,22 +567,44 @@ const Orders: React.FC = () => {
             <div className="space-y-3">
               {sortedCsRecords.map((record) => (
                 <div key={record.id} className="bg-warm-bg rounded-elder p-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <p className="text-elder-sm font-semibold text-warm-text">{record.reason}</p>
-                    <span className={`text-elder-xs font-semibold px-2 py-0.5 rounded-full ${getStatusBadgeColor(record.status)}`}>
+                  <div className="flex items-start justify-between mb-2 gap-2">
+                    <p className="text-elder-sm font-semibold text-warm-text flex-1">{record.reason}</p>
+                    <span className={`text-elder-xs font-semibold px-2 py-0.5 rounded-full ${getStatusBadgeColor(record.status)} flex-shrink-0`}>
                       {record.status}
                     </span>
                   </div>
-                  <p className="text-elder-xs text-warm-muted mb-2">{record.time}</p>
-                  {record.expectedFeedbackAt && (
-                    <p className="text-elder-sm text-warn mb-2 flex items-center gap-1">
-                      <Hourglass className="w-4 h-4" />
-                      预计反馈时间：{record.expectedFeedbackAt}
+                  <p className="text-elder-xs text-warm-muted mb-2">提交时间：{record.time}</p>
+                  {record.timeoutNode && (
+                    <p className="text-elder-sm text-danger mb-1.5 font-semibold">
+                      超时节点：{record.timeoutNode}
                     </p>
                   )}
+                  {record.expectedFeedbackAt && (
+                    <p className="text-elder-sm text-warn mb-1.5 flex items-center gap-1">
+                      <Hourglass className="w-4 h-4 flex-shrink-0" />
+                      预计反馈：{record.expectedFeedbackAt}
+                    </p>
+                  )}
+                  <div className="flex items-center gap-2 text-elder-xs flex-wrap mt-2 pt-2 border-t border-warm-border/60">
+                    {record.acceptedAt && (
+                      <span className="bg-brand/10 text-brand px-2 py-0.5 rounded">
+                        已受理 · {record.acceptedAt}
+                      </span>
+                    )}
+                    {record.feedbackAt && (
+                      <span className="bg-brand-dark/10 text-brand-dark px-2 py-0.5 rounded">
+                        已反馈 · {record.feedbackAt}
+                      </span>
+                    )}
+                    {record.resolvedAt && (
+                      <span className="bg-safe/10 text-safe px-2 py-0.5 rounded">
+                        已解决 · {record.resolvedAt}
+                      </span>
+                    )}
+                  </div>
                   {record.notes && (
-                    <p className="text-elder-sm text-warm-text bg-brand-50 rounded-lg p-2">
-                      {record.notes}
+                    <p className="text-elder-sm text-warm-text bg-brand-50 rounded-lg p-2 mt-2">
+                      📞 {record.notes}
                     </p>
                   )}
                 </div>
@@ -541,9 +614,18 @@ const Orders: React.FC = () => {
         </div>
 
         <div className="mb-5">
-          <div className="flex items-center gap-2 mb-3">
-            <FileText className="w-5 h-5 text-brand" />
-            <p className="text-elder-base font-semibold text-warm-text">交易凭证</p>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-brand" />
+              <p className="text-elder-base font-semibold text-warm-text">交易凭证</p>
+            </div>
+            <button
+              onClick={() => navigate(`/receipt-package?orderId=${order.id}`)}
+              className="flex items-center gap-1 text-elder-sm text-brand font-semibold bg-brand-50 px-3 py-1.5 rounded-full active:bg-brand-100 transition-colors border border-brand/20"
+            >
+              <Package className="w-4 h-4" />
+              完整材料包
+            </button>
           </div>
           <div className="space-y-2">
             {receiptDocs.map((doc) => (
@@ -696,14 +778,23 @@ const Orders: React.FC = () => {
                 <p className="text-elder-sm text-warm-text mb-2">
                   家人查看记录（共{order.familyViewRecords.length}人）
                 </p>
-                <div className="space-y-1">
-                  {order.familyViewRecords.map((record, i) => (
+                <div className="space-y-1.5">
+                  {order.familyViewRecords.slice().reverse().slice(0, 5).map((record) => (
                     <div
-                      key={i}
-                      className="flex items-center justify-between text-elder-xs"
+                      key={record.id}
+                      className="flex items-center justify-between text-elder-xs bg-white/50 rounded px-2 py-1.5"
                     >
-                      <span className="text-warm-muted">{record.viewedAt}</span>
-                      <span className="text-warm-text">{record.viewerInfo || '家人'}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-warm-text font-semibold">
+                          {record.viewerInfo || '家人'}
+                        </span>
+                        {record.clickedCsPhone && (
+                          <span className="bg-blue-100 text-blue-600 px-1 rounded text-elder-xs">联系过客服</span>
+                        )}
+                      </div>
+                      <div className="text-warm-muted">
+                        查看{record.viewCount}次 · {record.lastViewedAt}
+                      </div>
                     </div>
                   ))}
                 </div>

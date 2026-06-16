@@ -1,25 +1,44 @@
 import React, { useState, useMemo, useEffect } from 'react'
-import { Phone, MessageCircle, AlertCircle, ChevronDown, Volume2, Upload, Send, X, Clock } from 'lucide-react'
-import { useTradeStore } from '@/stores/useTradeStore'
+import { useNavigate } from 'react-router-dom'
+import { Phone, MessageCircle, AlertCircle, ChevronDown, Volume2, Upload, Send, X, Clock, CheckCircle, ArrowLeft, RefreshCw } from 'lucide-react'
+import { useTradeStore, type CsContactRecord } from '@/stores/useTradeStore'
 import { faqItems, FAQItem } from '@/data/mockData'
 
 const Support: React.FC = () => {
+  const navigate = useNavigate()
   const supportContext = useTradeStore((s) => s.supportContext)
   const supportContextDetail = useTradeStore((s) => s.supportContextDetail)
   const setSupportContext = useTradeStore((s) => s.setSupportContext)
   const addCsContactRecord = useTradeStore((s) => s.addCsContactRecord)
+  const updateCsContactRecordStatus = useTradeStore((s) => s.updateCsContactRecordStatus)
   const orders = useTradeStore((s) => s.orders)
   const [expandedFaq, setExpandedFaq] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [form, setForm] = useState({ description: '', phone: '' })
   const [showContext, setShowContext] = useState(true)
+  const [rerenderKey, setRerenderKey] = useState(0)
 
   const currentOrder = useMemo(() => {
     if (!supportContextDetail.orderId) return null
     return orders.find((o) => o.id === supportContextDetail.orderId) || null
-  }, [supportContextDetail.orderId, orders])
+  }, [supportContextDetail.orderId, orders, rerenderKey])
 
   const hasDetailData = Object.values(supportContextDetail).some((v) => v !== undefined && v !== '')
+
+  const getStatusBadgeColor = (status: string) => {
+    switch (status) {
+      case '待受理':
+        return 'bg-warn/10 text-warn'
+      case '处理中':
+        return 'bg-brand/10 text-brand'
+      case '已反馈':
+        return 'bg-brand-dark/10 text-brand-dark'
+      case '已解决':
+        return 'bg-safe/10 text-safe'
+      default:
+        return 'bg-warm-border text-warm-muted'
+    }
+  }
 
   useEffect(() => {
     if (supportContext) {
@@ -91,7 +110,7 @@ const Support: React.FC = () => {
   const handlePhoneCall = () => {
     if (supportContextDetail.orderId) {
       const reason = supportContextDetail.reason || '电话咨询'
-      const timeoutNode = supportContextDetail.reason?.includes('超时') ? supportContextDetail.reason : undefined
+      const timeoutNode = supportContextDetail.timeoutNode || (supportContextDetail.reason?.includes('超时') ? supportContextDetail.reason : undefined)
       const now = new Date()
       const expectedFeedbackAt = new Date(
         now.getTime() + (timeoutNode ? 2 : 24) * 60 * 60 * 1000
@@ -99,7 +118,7 @@ const Support: React.FC = () => {
       addCsContactRecord(supportContextDetail.orderId, {
         reason,
         timeoutNode,
-        status: '待处理',
+        status: '待受理',
         time: now.toLocaleString('zh-CN'),
         expectedFeedbackAt: expectedFeedbackAt.toLocaleString('zh-CN'),
       })
@@ -112,8 +131,8 @@ const Support: React.FC = () => {
 
   const handleOnlineChat = () => {
     if (supportContextDetail.orderId) {
-      const reason = supportContextDetail.reason || '电话咨询'
-      const timeoutNode = supportContextDetail.reason?.includes('超时') ? supportContextDetail.reason : undefined
+      const reason = supportContextDetail.reason || '在线咨询'
+      const timeoutNode = supportContextDetail.timeoutNode || (supportContextDetail.reason?.includes('超时') ? supportContextDetail.reason : undefined)
       const now = new Date()
       const expectedFeedbackAt = new Date(
         now.getTime() + (timeoutNode ? 2 : 24) * 60 * 60 * 1000
@@ -121,12 +140,30 @@ const Support: React.FC = () => {
       addCsContactRecord(supportContextDetail.orderId, {
         reason,
         timeoutNode,
-        status: '待处理',
+        status: '待受理',
         time: now.toLocaleString('zh-CN'),
         expectedFeedbackAt: expectedFeedbackAt.toLocaleString('zh-CN'),
       })
     }
     showToast('正在连接客服...')
+  }
+
+  const handleAdvanceStatus = (recordId: string, currentStatus: CsContactRecord['status']) => {
+    if (!supportContextDetail.orderId) return
+    const nextStatusMap: Record<string, CsContactRecord['status']> = {
+      '待受理': '处理中',
+      '处理中': '已反馈',
+      '已反馈': '已解决',
+    }
+    const next = nextStatusMap[currentStatus]
+    if (!next) return
+    let notes = ''
+    if (next === '处理中') notes = '客服已受理，正在联系相关方核实情况'
+    else if (next === '已反馈') notes = '已与卖家沟通，预计今晚会完成换绑'
+    else if (next === '已解决') notes = '问题已处理完毕，感谢您的耐心等待'
+    updateCsContactRecordStatus(supportContextDetail.orderId, recordId, next, notes)
+    setRerenderKey((k) => k + 1)
+    showToast(`已更新状态为「${next}」`)
   }
 
   const dismissContext = () => {
@@ -189,33 +226,84 @@ const Support: React.FC = () => {
 
         {currentOrder && currentOrder.csContactRecords && currentOrder.csContactRecords.length > 0 && (
           <section className="space-y-3">
-            <h2 className="elder-section-title">咨询记录</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="elder-section-title mb-0">咨询记录</h2>
+              <div className="flex items-center gap-2">
+                {supportContextDetail.orderId && (
+                  <button
+                    onClick={() => navigate('/orders')}
+                    className="flex items-center gap-1 text-elder-sm text-brand font-semibold bg-brand-50 px-3 py-1.5 rounded-full border border-brand/20"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    返回订单
+                  </button>
+                )}
+                <button
+                  onClick={() => setRerenderKey((k) => k + 1)}
+                  className="flex items-center gap-1 text-elder-sm text-warm-muted p-1.5 rounded-full active:bg-warm-bg"
+                  title="刷新"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
             <div className="space-y-3">
-              {currentOrder.csContactRecords.map((record) => (
-                <div key={record.id} className="elder-card space-y-2">
-                  <div className="flex items-center justify-between">
+              {[...currentOrder.csContactRecords].reverse().map((record) => (
+                <div key={record.id} className="elder-card space-y-3">
+                  <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
-                      <Clock className="w-5 h-5 text-brand" />
+                      <Clock className="w-5 h-5 text-brand flex-shrink-0" />
                       <span className="text-elder-sm text-warm-muted">{record.time}</span>
                     </div>
                     <span
-                      className={`text-elder-sm font-medium px-3 py-1 rounded-full ${
-                        record.status === '已解决'
-                          ? 'bg-safe/10 text-safe'
-                          : record.status === '处理中'
-                          ? 'bg-brand/10 text-brand'
-                          : 'bg-warm-text/10 text-warm-text'
-                      }`}
+                      className={`text-elder-sm font-semibold px-3 py-1 rounded-full ${getStatusBadgeColor(record.status)}`}
                     >
                       {record.status}
                     </span>
                   </div>
-                  <p className="text-elder-base font-medium text-warm-text">{record.reason}</p>
-                  {record.notes && (
-                    <p className="text-elder-sm text-warm-muted">{record.notes}</p>
+                  <p className="text-elder-base font-semibold text-warm-text">{record.reason}</p>
+                  {record.timeoutNode && (
+                    <p className="text-elder-sm text-danger font-semibold">⚠️ 超时节点：{record.timeoutNode}</p>
                   )}
                   {record.expectedFeedbackAt && (
-                    <p className="text-elder-sm text-warm-muted">预计反馈时间：{record.expectedFeedbackAt}</p>
+                    <p className="text-elder-sm text-warn font-semibold">⏰ 预计反馈：{record.expectedFeedbackAt}</p>
+                  )}
+                  {(record.acceptedAt || record.feedbackAt || record.resolvedAt) && (
+                    <div className="flex flex-wrap gap-2 text-elder-xs pt-2 border-t border-warm-border/60">
+                      {record.acceptedAt && (
+                        <span className="bg-brand/10 text-brand px-2 py-1 rounded-full">
+                          已受理 · {record.acceptedAt}
+                        </span>
+                      )}
+                      {record.feedbackAt && (
+                        <span className="bg-brand-dark/10 text-brand-dark px-2 py-1 rounded-full">
+                          已反馈 · {record.feedbackAt}
+                        </span>
+                      )}
+                      {record.resolvedAt && (
+                        <span className="bg-safe/10 text-safe px-2 py-1 rounded-full">
+                          已解决 · {record.resolvedAt}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {record.notes && (
+                    <p className="text-elder-sm text-warm-text bg-brand-50 rounded-lg p-3">
+                      💬 {record.notes}
+                    </p>
+                  )}
+                  {record.status !== '已解决' && (
+                    <button
+                      onClick={() => handleAdvanceStatus(record.id, record.status)}
+                      className="elder-btn-secondary w-full gap-2 text-elder-sm"
+                    >
+                      <CheckCircle className="w-5 h-5" />
+                      模拟推进至下一状态（
+                      {record.status === '待受理' && '处理中'}
+                      {record.status === '处理中' && '已反馈'}
+                      {record.status === '已反馈' && '已解决'}
+                      ）
+                    </button>
                   )}
                 </div>
               ))}

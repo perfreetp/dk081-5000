@@ -67,6 +67,7 @@ const Buy: React.FC = () => {
         createdAt: now,
         contactPhone: '',
         familyViewRecords: [],
+        shareRecords: [],
         csContactRecords: [],
         receiptOperationLogs: [],
         steps: [

@@ -6,6 +6,7 @@ import Buy from "@/pages/Buy";
 import Orders from "@/pages/Orders";
 import Support from "@/pages/Support";
 import FamilyView from "@/pages/FamilyView";
+import ReceiptPackage from "@/pages/ReceiptPackage";
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
           <Route path="/buy" element={<Buy />} />
           <Route path="/orders" element={<Orders />} />
           <Route path="/support" element={<Support />} />
+          <Route path="/receipt-package" element={<ReceiptPackage />} />
         </Route>
         <Route path="/family-view" element={<FamilyView />} />
       </Routes>

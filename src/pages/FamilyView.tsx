@@ -1,21 +1,39 @@
-import React, { useState, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import React, { useState, useEffect, useMemo } from 'react'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import {
   Shield, Check, AlertTriangle, Clock, Phone,
-  Eye, Lock, RefreshCw, Link2Off, Info
+  Eye, Lock, RefreshCw, Link2Off, Info, FileText, Package
 } from 'lucide-react'
 import { useTradeStore, type Order } from '@/stores/useTradeStore'
 
+const VIEWER_KEY_STORAGE = 'anxinhao_viewer_key'
+
+const generateViewerKey = (): string => {
+  try {
+    let key = localStorage.getItem(VIEWER_KEY_STORAGE)
+    if (!key) {
+      key = `viewer_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+      localStorage.setItem(VIEWER_KEY_STORAGE, key)
+    }
+    return key
+  } catch {
+    return `viewer_${Date.now()}`
+  }
+}
+
 const FamilyView: React.FC = () => {
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const shareCodeParam = searchParams.get('shareCode')
   const codeParam = searchParams.get('code')
   const orderId = searchParams.get('orderId')
   const [refreshKey, setRefreshKey] = useState(0)
+  const [viewerKey] = useState<string>(() => generateViewerKey())
 
   const storeOrders = useTradeStore((s) => s.orders)
   const getOrderByShareCode = useTradeStore((s) => s.getOrderByShareCode)
   const addFamilyViewRecord = useTradeStore((s) => s.addFamilyViewRecord)
+  const markFamilyViewCsClicked = useTradeStore((s) => s.markFamilyViewCsClicked)
 
   const shareCode = shareCodeParam || codeParam
 
@@ -27,18 +45,16 @@ const FamilyView: React.FC = () => {
     order = storeOrders.find(o => o.id === orderId)
   }
 
+  const myRecord = useMemo(() => {
+    if (!order) return null
+    return order.familyViewRecords.find((r) => r.viewerKey === viewerKey)
+  }, [order, viewerKey, refreshKey])
+
   useEffect(() => {
     if (order) {
-      const now = new Date().toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-      })
-      addFamilyViewRecord(order.id, { viewedAt: now, viewerInfo: '家人' })
+      addFamilyViewRecord(order.id, viewerKey, '家人')
     }
-  }, [order, refreshKey, addFamilyViewRecord])
+  }, [order, viewerKey, refreshKey, addFamilyViewRecord])
 
   if (!order) {
     return (
@@ -47,11 +63,11 @@ const FamilyView: React.FC = () => {
           <div className="w-24 h-24 bg-danger/10 rounded-full flex items-center justify-center mb-6">
             <Link2Off className="w-12 h-12 text-danger" />
           </div>
-          
+
           <h1 className="text-elder-xl font-bold text-warm-text text-center mb-3">
             链接已失效
           </h1>
-          
+
           <p className="text-elder-base text-warm-muted text-center mb-8 px-4">
             这个分享链接已经失效了，请让下单的家人重新分享给您
           </p>
@@ -120,21 +136,37 @@ const FamilyView: React.FC = () => {
     setRefreshKey(prev => prev + 1)
   }
 
+  const handleCsPhone = () => {
+    markFamilyViewCsClicked(order!.id, viewerKey)
+    window.open('tel:4001234567')
+  }
+
+  const handleGoReceipt = () => {
+    navigate(`/receipt-package?orderId=${order!.id}&family=1`)
+  }
+
   return (
     <div className="min-h-screen bg-warm-bg">
       <div className="bg-gradient-to-r from-brand to-brand-dark p-4 pb-8">
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center justify-between mb-4">
           <div className="bg-white/20 backdrop-blur-sm px-4 py-1.5 rounded-full flex items-center gap-2">
             <Eye className="w-4 h-4 text-white" />
             <span className="text-elder-sm font-bold text-white">家人查看模式</span>
             <Lock className="w-4 h-4 text-white/80" />
           </div>
+          <button
+            onClick={handleRefresh}
+            className="flex items-center gap-1.5 text-elder-sm text-white font-semibold bg-white/20 px-4 py-2 rounded-full active:bg-white/30 transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" />
+            刷新
+          </button>
         </div>
 
         <div className="bg-white rounded-elder p-5 shadow-lg">
           <div className="flex items-start justify-between mb-4">
             <div className="flex-1">
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <span className="text-elder-xs text-warm-muted font-mono">{order.id}</span>
                 <span className={`text-elder-xs font-bold px-2.5 py-1 rounded-full ${
                   order.status === '已完成' ? 'bg-safe/10 text-safe' :
@@ -148,6 +180,11 @@ const FamilyView: React.FC = () => {
                 }`}>
                   {order.type === 'sell' ? '卖号' : '买号'}
                 </span>
+                {myRecord && myRecord.hasRead && (
+                  <span className="text-elder-xs font-bold px-2.5 py-1 rounded-full bg-safe/10 text-safe flex items-center gap-1">
+                    <Check className="w-3 h-3" /> 已读
+                  </span>
+                )}
               </div>
               <h1 className="text-elder-xl font-bold text-warm-text mb-1">
                 {order.game}
@@ -173,11 +210,11 @@ const FamilyView: React.FC = () => {
                 </div>
               </div>
               <button
-                onClick={handleRefresh}
-                className="flex items-center gap-1.5 text-elder-sm text-brand font-semibold bg-brand-50 px-4 py-2 rounded-full active:bg-brand-100 transition-colors"
+                onClick={handleGoReceipt}
+                className="flex items-center gap-1.5 text-elder-sm text-brand font-semibold bg-brand-50 px-4 py-2.5 rounded-full active:bg-brand-100 transition-colors border border-brand/20"
               >
-                <RefreshCw className="w-4 h-4" />
-                刷新状态
+                <Package className="w-4 h-4" />
+                查看材料包
               </button>
             </div>
           </div>
@@ -257,12 +294,17 @@ const FamilyView: React.FC = () => {
             如有任何疑问，可随时拨打客服电话，我们会耐心为您解答
           </p>
           <button
-            onClick={() => window.open('tel:4001234567')}
+            onClick={handleCsPhone}
             className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-elder-lg rounded-elder py-4 flex items-center justify-center gap-2 shadow-lg transition-colors"
           >
             <Phone className="w-7 h-7" />
             立即拨打 400-123-4567
           </button>
+          {myRecord && myRecord.clickedCsPhone && myRecord.lastCsClickAt && (
+            <p className="text-elder-xs text-blue-700 mt-3 text-center">
+              ✅ 您已于 {myRecord.lastCsClickAt} 拨打过客服
+            </p>
+          )}
         </div>
 
         <div className="elder-card bg-warn/10 border-2 border-warn/30">
@@ -288,6 +330,23 @@ const FamilyView: React.FC = () => {
               <p className="text-elder-sm text-warm-text">不要相信任何私下联系的"客服"</p>
             </div>
           </div>
+        </div>
+
+        <div className="elder-card">
+          <div className="flex items-center gap-2 mb-4">
+            <FileText className="w-5 h-5 text-brand" />
+            <span className="text-elder-base font-bold text-warm-text">交易凭证（只读）</span>
+          </div>
+          <p className="text-elder-sm text-warm-muted mb-3">
+            家人端仅可查看，如需下载或转发请让下单人操作
+          </p>
+          <button
+            onClick={handleGoReceipt}
+            className="elder-btn-secondary w-full flex items-center justify-center gap-2"
+          >
+            <FileText className="w-5 h-5" />
+            查看所有交易凭证
+          </button>
         </div>
 
         <div className="text-center py-4">

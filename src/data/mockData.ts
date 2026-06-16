@@ -35,8 +35,23 @@ export interface StepItem {
 }
 
 export interface FamilyViewRecord {
-  viewedAt: string
+  id: string
+  viewerKey: string
   viewerInfo?: string
+  firstViewedAt: string
+  lastViewedAt: string
+  viewCount: number
+  hasRead: boolean
+  clickedCsPhone: boolean
+  lastCsClickAt?: string
+}
+
+export interface ShareRecord {
+  id: string
+  time: string
+  target: string
+  channel: string
+  shareCode: string
 }
 
 export interface CsContactRecord {
@@ -44,8 +59,11 @@ export interface CsContactRecord {
   time: string
   reason: string
   timeoutNode?: string
-  status: '待处理' | '处理中' | '已解决'
+  status: '待受理' | '处理中' | '已反馈' | '已解决'
   expectedFeedbackAt?: string
+  acceptedAt?: string
+  feedbackAt?: string
+  resolvedAt?: string
   notes?: string
 }
 
@@ -73,6 +91,7 @@ export interface MockOrder {
   sellFormInfo?: string
   contactPhone?: string
   familyShareCode?: string
+  shareRecords: ShareRecord[]
   familyViewRecords: FamilyViewRecord[]
   csContactRecords: CsContactRecord[]
   receiptOperationLogs: ReceiptOperationLog[]
@@ -188,9 +207,13 @@ export const mockOrders: MockOrder[] = [
     createdAt: '2026-06-01 14:30',
     contactPhone: '138****8888',
     familyShareCode: 'AX6010015832',
+    shareRecords: [
+      { id: 'SH001', time: '2026-06-01 14:50', target: '孩子爸爸', channel: '微信', shareCode: 'AX6010015832' },
+      { id: 'SH002', time: '2026-06-02 09:10', target: '家人群', channel: '微信群', shareCode: 'AX6010015832' },
+    ],
     familyViewRecords: [
-      { viewedAt: '2026-06-01 15:00', viewerInfo: '孩子爸爸' },
-      { viewedAt: '2026-06-02 09:30', viewerInfo: '家人' },
+      { id: 'FV001', viewerKey: 'dad_001', viewerInfo: '孩子爸爸', firstViewedAt: '2026-06-01 15:00', lastViewedAt: '2026-06-02 10:30', viewCount: 5, hasRead: true, clickedCsPhone: false },
+      { id: 'FV002', viewerKey: 'family_001', viewerInfo: '家人', firstViewedAt: '2026-06-02 09:30', lastViewedAt: '2026-06-02 09:30', viewCount: 1, hasRead: true, clickedCsPhone: true, lastCsClickAt: '2026-06-02 09:35' },
     ],
     csContactRecords: [],
     receiptOperationLogs: [],
@@ -213,8 +236,11 @@ export const mockOrders: MockOrder[] = [
     createdAt: '2026-06-02 09:15',
     contactPhone: '139****6666',
     familyShareCode: 'AX6020023947',
+    shareRecords: [
+      { id: 'SH003', time: '2026-06-02 09:45', target: '孩子妈妈', channel: '微信', shareCode: 'AX6020023947' },
+    ],
     familyViewRecords: [
-      { viewedAt: '2026-06-02 10:00', viewerInfo: '孩子妈妈' },
+      { id: 'FV003', viewerKey: 'mom_001', viewerInfo: '孩子妈妈', firstViewedAt: '2026-06-02 10:00', lastViewedAt: '2026-06-03 11:00', viewCount: 8, hasRead: true, clickedCsPhone: true, lastCsClickAt: '2026-06-03 10:45' },
     ],
     csContactRecords: [
       {
@@ -224,6 +250,7 @@ export const mockOrders: MockOrder[] = [
         timeoutNode: '卖家换绑账号',
         status: '处理中',
         expectedFeedbackAt: '2026-06-03 15:00',
+        acceptedAt: '2026-06-03 10:45',
         notes: '客服已联系卖家，正在沟通中',
       },
     ],
@@ -253,10 +280,14 @@ export const mockOrders: MockOrder[] = [
     completedAt: '2026-05-28 17:00',
     contactPhone: '137****5555',
     familyShareCode: 'AX6030031258',
+    shareRecords: [
+      { id: 'SH004', time: '2026-05-28 11:30', target: '孩子舅舅', channel: '微信', shareCode: 'AX6030031258' },
+      { id: 'SH005', time: '2026-05-28 17:10', target: '家人群', channel: '微信群', shareCode: 'AX6030031258' },
+    ],
     familyViewRecords: [
-      { viewedAt: '2026-05-28 12:00', viewerInfo: '孩子舅舅' },
-      { viewedAt: '2026-05-28 18:00', viewerInfo: '孩子爸爸' },
-      { viewedAt: '2026-05-29 08:00', viewerInfo: '家人' },
+      { id: 'FV004', viewerKey: 'uncle_001', viewerInfo: '孩子舅舅', firstViewedAt: '2026-05-28 12:00', lastViewedAt: '2026-05-29 09:00', viewCount: 3, hasRead: true, clickedCsPhone: false },
+      { id: 'FV005', viewerKey: 'dad_002', viewerInfo: '孩子爸爸', firstViewedAt: '2026-05-28 18:00', lastViewedAt: '2026-05-30 20:00', viewCount: 6, hasRead: true, clickedCsPhone: true, lastCsClickAt: '2026-05-28 16:10' },
+      { id: 'FV006', viewerKey: 'family_002', viewerInfo: '家人', firstViewedAt: '2026-05-29 08:00', lastViewedAt: '2026-05-29 08:00', viewCount: 1, hasRead: true, clickedCsPhone: false },
     ],
     csContactRecords: [
       {
@@ -264,13 +295,16 @@ export const mockOrders: MockOrder[] = [
         time: '2026-05-28 16:00',
         reason: '换绑操作咨询',
         status: '已解决',
+        acceptedAt: '2026-05-28 16:05',
+        feedbackAt: '2026-05-28 16:20',
+        resolvedAt: '2026-05-28 16:30',
         notes: '电话指导完成换绑',
       },
     ],
     receiptOperationLogs: [
       { id: 'LOG003', type: 'download', docType: '交易合同', time: '2026-05-28 17:30' },
       { id: 'LOG004', type: 'download', docType: '收款确认', time: '2026-05-28 17:35' },
-      { id: 'LOG005', type: 'forward', docType: '交易完成确认', time: '2026-05-28 18:00', target: '微信-家人群' },
+      { id: 'LOG005', type: 'forward', docType: '全部交易凭证（打包）', time: '2026-05-28 18:00', target: '家人' },
       { id: 'LOG006', type: 'download', docType: '换绑确认书', time: '2026-05-28 18:10' },
     ],
     steps: [

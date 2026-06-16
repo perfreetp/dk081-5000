@@ -69,6 +69,7 @@ const Sell: React.FC = () => {
       ],
       sellFormInfo: `${sellForm.game} ${sellForm.server} ${sellForm.level}`,
       familyViewRecords: [],
+      shareRecords: [],
       csContactRecords: [],
       receiptOperationLogs: [],
     })
